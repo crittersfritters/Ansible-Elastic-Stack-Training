@@ -1,0 +1,27 @@
+filebeat.inputs:
+  - type: filestream
+    id: zeek-json
+    enabled: true
+    paths:
+      - /opt/zeek/logs/current/*.log
+    prospector.scanner.fingerprint.length: 64
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+          expand_keys: true
+
+processors:
+  - add_fields:
+      target: event
+      fields:
+        module: zeek
+        dataset: zeek
+  - add_fields:
+      target: mission_system
+      fields:
+        name: mission-system-001
+
+output.kafka:
+  hosts: ["kafka.local:9092"]
+  topic: zeek-group

@@ -1,0 +1,23 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.8
+    container_name: elasticsearch
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - "./data:/usr/share/elasticsearch/data:Z"
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      xpack.security.enabled: "false"
+      network.host: 127.0.0.1
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s
+      interval: 10s
+      timeout: 10s
+      retries: 24
+      start_period: 20s

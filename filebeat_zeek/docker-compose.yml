@@ -1,0 +1,26 @@
+services:
+  filebeat_zeek:
+    image: docker.elastic.co/beats/filebeat:9.2.8
+    container_name: filebeat_zeek
+    user: root
+    network_mode: host
+    restart: unless-stopped
+    extra_hosts:
+      - "kafka.local:127.0.0.1"
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+      - "/opt/zeek/logs:/opt/zeek/logs:ro"
+      - "./data:/usr/share/filebeat/data:Z"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          filebeat test config -c /usr/share/filebeat/filebeat.yml
+          --strict.perms=false --path.data /tmp/filebeat-health >/dev/null 2>&1
+          && filebeat test output -c /usr/share/filebeat/filebeat.yml
+          --strict.perms=false --path.data /tmp/filebeat-health >/dev/null 2>&1
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 10s

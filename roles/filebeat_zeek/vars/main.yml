@@ -1,0 +1,3 @@
+---
+filebeat_zeek_container_name: filebeat_zeek
+filebeat_zeek_folder_path: "{{ docker_path }}/{{ filebeat_zeek_container_name }}"

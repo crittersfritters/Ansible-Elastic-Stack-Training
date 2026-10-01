@@ -1,0 +1,4 @@
+---
+# KRaft cluster ID used when the disposable training broker formats its data
+# directory. Delete /var/docker/kafka/data before changing this value.
+kafka_cluster_id: MkU3OEVBNTcwNTJENDM2Qk

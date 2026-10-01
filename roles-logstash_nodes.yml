@@ -1,0 +1,5 @@
+---
+- name: Deploy the Logstash processing node
+  hosts: logstash_nodes
+  roles:
+    - role: logstash_pipeline

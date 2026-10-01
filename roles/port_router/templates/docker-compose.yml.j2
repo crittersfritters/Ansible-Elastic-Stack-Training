@@ -1,0 +1,22 @@
+services:
+  {{ port_router_service_name }}:
+    image: {{ elastic_docker_registry }}/logstash/logstash:{{ elastic_docker_image_tag }}
+    container_name: {{ port_router_service_name }}
+    network_mode: host
+    extra_hosts:
+{% for alias in training_lab_container_aliases %}
+      - "{{ alias }}={{ training_lab_loopback_address }}"
+{% endfor %}
+    restart: unless-stopped
+    environment:
+      MISSION_EVENT_TIMEZONE: "{{ mission_event_timezone }}"
+    volumes:
+      - "{{ port_router_folder_path }}/pipeline:/usr/share/logstash/pipeline:ro,Z"
+      - "{{ port_router_folder_path }}/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,Z"
+      - "{{ port_router_folder_path }}/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro,Z"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:{{ port_router_container_port }}/_node/pipelines/{{ port_router_pipeline_id }}"]
+      interval: 10s
+      timeout: 10s
+      retries: 24
+      start_period: 20s

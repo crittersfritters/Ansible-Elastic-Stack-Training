@@ -1,0 +1,15 @@
+services:
+  {{ kibana_container_name }}:
+    image: {{ elastic_docker_registry }}/{{ kibana_container_name }}/{{ kibana_container_name }}:{{ elastic_docker_image_tag }}
+    container_name: {{ kibana_container_name }}
+    network_mode: host
+    extra_hosts:
+{% for alias in training_lab_container_aliases %}
+      - "{{ alias }}={{ training_lab_loopback_address }}"
+{% endfor %}
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch.local:9200
+      - SERVER_HOST=127.0.0.1
+    volumes:
+      - "{{ kibana_folder_path }}/data:/usr/share/kibana/data:Z"

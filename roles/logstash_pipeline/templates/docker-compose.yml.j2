@@ -1,0 +1,20 @@
+services:
+  {{ logstash_pipeline_container_name }}:
+    image: {{ elastic_docker_registry }}/logstash/logstash:{{ elastic_docker_image_tag }}
+    container_name: {{ logstash_pipeline_container_name }}
+    network_mode: host
+    extra_hosts:
+{% for alias in training_lab_container_aliases %}
+      - "{{ alias }}={{ training_lab_loopback_address }}"
+{% endfor %}
+    restart: unless-stopped
+    volumes:
+      - "{{ logstash_pipeline_folder_path }}/pipeline:/usr/share/logstash/pipeline:ro,Z"
+      - "{{ logstash_pipeline_folder_path }}/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,Z"
+      - "{{ logstash_pipeline_folder_path }}/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro,Z"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:{{ logstash_pipeline_container_port }}/_node/pipelines/zeek >/dev/null && curl -fsS http://localhost:{{ logstash_pipeline_container_port }}/_node/pipelines/suricata >/dev/null && curl -fsS http://localhost:{{ logstash_pipeline_container_port }}/_node/pipelines/grok_pipeline >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 24
+      start_period: 20s

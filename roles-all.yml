@@ -1,0 +1,23 @@
+---
+# Deploy the complete single-site training stack in dependency order. Docker
+# is a host prerequisite because the same daemon also owns the GitLab project.
+- name: Prepare the localhost target
+  ansible.builtin.import_playbook: roles-system_files_setup.yml
+
+- name: Deploy Elasticsearch
+  ansible.builtin.import_playbook: roles-elasticsearch_nodes.yml
+
+- name: Deploy Kafka, initialize topics, and deploy Kafka UI
+  ansible.builtin.import_playbook: roles-queue_nodes.yml
+
+- name: Deploy the Kafka-to-Elasticsearch Logstash pipelines
+  ansible.builtin.import_playbook: roles-logstash_nodes.yml
+
+- name: Deploy the mission port router
+  ansible.builtin.import_playbook: roles-logstash_port-router.yml
+
+- name: Deploy Kibana
+  ansible.builtin.import_playbook: roles-web_servers.yml
+
+- name: Deploy the Zeek and Suricata Filebeat collectors
+  ansible.builtin.import_playbook: roles-network_sensors.yml

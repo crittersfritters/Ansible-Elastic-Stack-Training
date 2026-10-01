@@ -1,0 +1,97 @@
+---
+- name: Wait for Elasticsearch before deploying Kibana
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_elasticsearch.yml"
+
+- name: Create the Kibana project directory
+  ansible.builtin.file:
+    path: "{{ kibana_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the Kibana data directory for container UID 1000
+  ansible.builtin.file:
+    path: "{{ kibana_folder_path }}/data"
+    state: directory
+    mode: "0770"
+    owner: "1000"
+    group: "0"
+  become: true
+
+- name: Render the Kibana Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/kibana/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ kibana_folder_path }}"
+
+- name: Deploy the Kibana Compose project
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ kibana_folder_path }}"
+
+- name: Wait for Kibana to report itself available
+  ansible.builtin.uri:
+    url: http://127.0.0.1:5601/api/status
+    method: GET
+    status_code: 200
+    return_content: true
+  register: kibana_status_result
+  until:
+    - kibana_status_result.status | default(0) == 200
+    - >-
+      ((kibana_status_result.json | default({}, true)).get('status', {})
+      .get('overall', {}).get('level', '')) == 'available'
+  retries: 48
+  delay: 5
+  changed_when: false
+
+- name: Inspect the Training Lab data views
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:5601/api/data_views/data_view/{{ item.data_view }}"
+    method: GET
+    headers:
+      kbn-xsrf: ansible-elastic-stack-training
+    return_content: true
+    status_code:
+      - 200
+      - 404
+  loop: "{{ elastic_destinations }}"
+  loop_control:
+    label: "{{ item.data_view }}"
+  register: kibana_data_view_checks
+  changed_when: false
+
+- name: Create or update drifted Training Lab data views
+  ansible.builtin.uri:
+    url: http://127.0.0.1:5601/api/data_views/data_view
+    method: POST
+    headers:
+      kbn-xsrf: ansible-elastic-stack-training
+    body_format: json
+    body:
+      data_view:
+        id: "{{ item.item.data_view }}"
+        name: "{{ item.item.data_view }}"
+        title: "{{ item.item.index_pattern }}"
+        timeFieldName: "@timestamp"
+        allowNoIndex: false
+      override: true
+    status_code: 200
+  loop: "{{ kibana_data_view_checks.results }}"
+  loop_control:
+    label: "{{ item.item.data_view }}"
+  vars:
+    kibana_existing_data_view: >-
+      {{ (item.json | default({})).get('data_view', {}) }}
+  when: >-
+    item.status == 404
+    or kibana_existing_data_view.get('id', '') != item.item.data_view
+    or kibana_existing_data_view.get('name', '') != item.item.data_view
+    or kibana_existing_data_view.get('title', '') != item.item.index_pattern
+    or kibana_existing_data_view.get('timeFieldName', '') != '@timestamp'

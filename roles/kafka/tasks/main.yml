@@ -1,0 +1,170 @@
+---
+- name: Create the Kafka project directory
+  ansible.builtin.file:
+    path: "{{ kafka_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the Kafka data directory for the image appuser
+  ansible.builtin.file:
+    path: "{{ kafka_folder_path }}/data"
+    state: directory
+    mode: "0770"
+    owner: "1000"
+    group: "0"
+  become: true
+
+- name: Create the Kafka configuration directory
+  ansible.builtin.file:
+    path: "{{ kafka_folder_path }}/config"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+- name: Copy the Kafka broker configuration
+  ansible.builtin.copy:
+    src: "{{ project_root }}/roles/kafka/files/server.properties"
+    dest: "{{ kafka_folder_path }}/config/server.properties"
+    mode: "0644"
+    owner: root
+    group: root
+  register: kafka_server_properties_result
+  become: true
+
+- name: Render the Kafka Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/kafka/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ kafka_folder_path }}"
+
+- name: Deploy the Kafka broker
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ kafka_folder_path }}"
+    common_compose_services:
+      - "{{ kafka_container_name }}"
+    common_compose_external_config_changed: >-
+      {{ kafka_server_properties_result.changed }}
+    common_compose_restart_services:
+      - "{{ kafka_container_name }}"
+
+- name: Wait for the Kafka broker to become healthy
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_container_health.yml"
+  vars:
+    common_healthcheck_container_name: "{{ kafka_container_name }}"
+    common_healthcheck_retries: 48
+    common_healthcheck_delay: 5
+
+- name: Inspect existing Kafka topics
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ kafka_container_name }}"
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server
+      - 127.0.0.1:9092
+      - --list
+  register: kafka_existing_topics_result
+  changed_when: false
+  become: true
+
+- name: Identify Kafka topics that need creation
+  ansible.builtin.set_fact:
+    kafka_missing_topics: >-
+      {{
+        required_kafka_topics
+        | difference(kafka_existing_topics_result.stdout_lines | default([]))
+      }}
+
+- name: Inspect the Kafka topic initializer container
+  community.docker.docker_container_info:
+    name: "{{ kafka_topics_init_container_name }}"
+  register: kafka_topic_initializer_current_result
+  changed_when: false
+  become: true
+
+- name: Decide whether the Kafka topic initializer needs reconciliation
+  ansible.builtin.set_fact:
+    kafka_topic_initializer_needs_run: >-
+      {{
+        kafka_missing_topics | length > 0
+        or not (kafka_topic_initializer_current_result.exists | default(false))
+        or (
+          (kafka_topic_initializer_current_result.container | default({}, true))
+          .get('State', {}).get('Status', '')
+        ) != 'exited'
+        or (
+          (kafka_topic_initializer_current_result.container | default({}, true))
+          .get('State', {}).get('ExitCode', 1)
+        ) != 0
+      }}
+
+- name: Run the Kafka topic initializer
+  community.docker.docker_compose_v2:
+    project_src: "{{ kafka_folder_path }}"
+    services:
+      - "{{ kafka_topics_init_container_name }}"
+    dependencies: false
+    recreate: always
+    state: present
+  when: kafka_topic_initializer_needs_run | bool
+  become: true
+
+- name: Wait for the Kafka topic initializer to finish
+  community.docker.docker_container_info:
+    name: "{{ kafka_topics_init_container_name }}"
+  register: kafka_topic_initializer_result
+  until:
+    - kafka_topic_initializer_result.exists | default(false)
+    - >-
+      ((kafka_topic_initializer_result.container | default({}, true)).get('State', {})
+      .get('Status', '')) == 'exited'
+  retries: 36
+  delay: 5
+  changed_when: false
+  become: true
+  when: kafka_topic_initializer_needs_run | bool
+
+- name: Require the Kafka topic initializer to succeed
+  ansible.builtin.assert:
+    that:
+      - >-
+        ((kafka_topic_initializer_result.container | default({}, true)).get('State', {})
+        .get('ExitCode', 1)) == 0
+    fail_msg: >-
+      The kafka-topics-init container exited unsuccessfully. Inspect it with
+      'docker logs kafka-topics-init' on the training host.
+  when: kafka_topic_initializer_needs_run | bool
+
+- name: Verify Kafka and the required topics
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_kafka.yml"
+
+- name: Deploy Kafka UI after topic verification
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ kafka_folder_path }}"
+    common_compose_services:
+      - "{{ kafka_ui_container_name }}"
+
+- name: Wait for Kafka UI to answer HTTP requests
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/
+    method: GET
+    status_code: 200
+  register: kafka_ui_status_result
+  until: kafka_ui_status_result.status | default(0) == 200
+  retries: 36
+  delay: 5
+  changed_when: false

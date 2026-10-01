@@ -1,0 +1,149 @@
+---
+- name: Wait for Kafka and the required topics before deploying Logstash
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_kafka.yml"
+
+- name: Wait for Elasticsearch before deploying the processing pipelines
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_elasticsearch.yml"
+
+- name: Create the Logstash processing project directory
+  ansible.builtin.file:
+    path: "{{ logstash_pipeline_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the Logstash configuration directory
+  ansible.builtin.file:
+    path: "{{ logstash_pipeline_folder_path }}/config"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+- name: Create the Logstash pipeline directory
+  ansible.builtin.file:
+    path: "{{ logstash_pipeline_folder_path }}/pipeline"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+- name: Find deployed Logstash processing pipeline files
+  ansible.builtin.find:
+    paths: "{{ logstash_pipeline_folder_path }}/pipeline"
+    file_type: file
+    recurse: false
+  register: logstash_pipeline_deployed_files_result
+  become: true
+
+- name: Remove pipeline files that are no longer managed by the role
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ logstash_pipeline_deployed_files_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  vars:
+    logstash_pipeline_expected_files: >-
+      {{
+        query(
+          'ansible.builtin.fileglob',
+          project_root + '/roles/logstash_pipeline/files/pipeline/*'
+        )
+        | map('basename')
+        | list
+      }}
+  when: (item.path | basename) not in logstash_pipeline_expected_files
+  register: logstash_pipeline_removed_files_result
+  become: true
+
+- name: Copy the Logstash processing pipeline files
+  ansible.builtin.copy:
+    src: "{{ project_root }}/roles/logstash_pipeline/files/pipeline/"
+    dest: "{{ logstash_pipeline_folder_path }}/pipeline/"
+    mode: "0644"
+    directory_mode: "0755"
+    owner: root
+    group: root
+  register: logstash_pipeline_files_result
+  become: true
+
+- name: Find deployed Logstash processing configuration files
+  ansible.builtin.find:
+    paths: "{{ logstash_pipeline_folder_path }}/config"
+    file_type: file
+    recurse: false
+  register: logstash_pipeline_deployed_config_files_result
+  become: true
+
+- name: Remove configuration files that are no longer managed by the role
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ logstash_pipeline_deployed_config_files_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  vars:
+    logstash_pipeline_expected_config_files: >-
+      {{
+        query(
+          'ansible.builtin.fileglob',
+          project_root + '/roles/logstash_pipeline/files/config/*'
+        )
+        | map('basename')
+        | list
+      }}
+  when: (item.path | basename) not in logstash_pipeline_expected_config_files
+  register: logstash_pipeline_removed_config_files_result
+  become: true
+
+- name: Copy the Logstash processing configuration files
+  ansible.builtin.copy:
+    src: "{{ project_root }}/roles/logstash_pipeline/files/config/"
+    dest: "{{ logstash_pipeline_folder_path }}/config/"
+    mode: "0644"
+    directory_mode: "0755"
+    owner: root
+    group: root
+  register: logstash_pipeline_config_files_result
+  become: true
+
+- name: Render the Logstash processing Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/logstash_pipeline/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ logstash_pipeline_folder_path }}"
+
+- name: Deploy the Logstash processing Compose project
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ logstash_pipeline_folder_path }}"
+    common_compose_external_config_changed: >-
+      {{
+        logstash_pipeline_files_result.changed
+        or logstash_pipeline_config_files_result.changed
+        or (logstash_pipeline_removed_files_result.changed | default(false))
+        or (logstash_pipeline_removed_config_files_result.changed | default(false))
+      }}
+    common_compose_external_config_requires_recreate: >-
+      {{
+        logstash_pipeline_config_files_result.changed
+        or (logstash_pipeline_removed_config_files_result.changed | default(false))
+      }}
+
+- name: Confirm the Logstash processing pipelines are healthy
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_container_health.yml"
+  vars:
+    common_healthcheck_container_name: "{{ logstash_pipeline_container_name }}"
+    common_healthcheck_retries: 48
+    common_healthcheck_delay: 5

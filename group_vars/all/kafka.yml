@@ -1,0 +1,7 @@
+---
+# Topics required by the three training data paths and verified by every
+# Kafka-dependent role.
+required_kafka_topics:
+  - zeek-group
+  - suricata-group
+  - mission-group

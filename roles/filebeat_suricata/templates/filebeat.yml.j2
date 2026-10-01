@@ -1,0 +1,26 @@
+filebeat.inputs:
+  - type: filestream
+    id: suricata-eve-json
+    enabled: true
+    paths:
+      - "{{ suricata_events_path }}"
+    prospector.scanner.fingerprint.length: 64
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+
+processors:
+  - add_fields:
+      target: event
+      fields:
+        module: suricata
+        dataset: suricata.eve
+  - add_fields:
+      target: mission_system
+      fields:
+        name: mission-system-002
+
+output.kafka:
+  hosts: ["kafka.local:9092"]
+  topic: suricata-group

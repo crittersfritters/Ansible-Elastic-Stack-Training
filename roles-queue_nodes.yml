@@ -1,0 +1,5 @@
+---
+- name: Deploy the Kafka queue node
+  hosts: queue_nodes
+  roles:
+    - role: kafka

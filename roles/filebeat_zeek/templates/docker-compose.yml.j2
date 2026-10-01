@@ -1,0 +1,21 @@
+services:
+  {{ filebeat_zeek_container_name }}:
+    image: {{ elastic_docker_registry }}/beats/filebeat:{{ elastic_docker_image_tag }}
+    container_name: {{ filebeat_zeek_container_name }}
+    user: root
+    network_mode: host
+    extra_hosts:
+{% for alias in training_lab_container_aliases %}
+      - "{{ alias }}={{ training_lab_loopback_address }}"
+{% endfor %}
+    restart: unless-stopped
+    volumes:
+      - "{{ filebeat_zeek_folder_path }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
+      - "{{ zeek_logs_root }}:{{ zeek_logs_root }}:{{ sensor_log_bind_options }}"
+      - "{{ filebeat_zeek_folder_path }}/data:/usr/share/filebeat/data:Z"
+    healthcheck:
+      test: ["CMD-SHELL", "filebeat test config -c /usr/share/filebeat/filebeat.yml --path.data /tmp/filebeat-health >/dev/null 2>&1 && filebeat test output -c /usr/share/filebeat/filebeat.yml --path.data /tmp/filebeat-health >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 10s

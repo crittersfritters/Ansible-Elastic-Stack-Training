@@ -1,0 +1,5 @@
+---
+port_router_service_name: logstash_port-router
+port_router_folder_path: "{{ docker_path }}/{{ port_router_service_name }}"
+port_router_container_port: "9601"
+port_router_pipeline_id: logstash_port-router

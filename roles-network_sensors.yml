@@ -1,0 +1,6 @@
+---
+- name: Deploy both network sensor collectors
+  hosts: network_sensors
+  roles:
+    - role: filebeat_zeek
+    - role: filebeat_suricata

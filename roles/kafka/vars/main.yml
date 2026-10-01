@@ -1,0 +1,8 @@
+---
+kafka_container_name: kafka
+kafka_ui_container_name: kafka-ui
+kafka_topics_init_container_name: kafka-topics-init
+kafka_image: apache/kafka:3.9.2
+kafka_ui_image: provectuslabs/kafka-ui:v0.7.2
+kafka_folder_path: "{{ docker_path }}/{{ kafka_container_name }}"
+kafka_container_data_path: /var/lib/kafka/data

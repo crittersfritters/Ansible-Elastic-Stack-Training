@@ -1,0 +1,145 @@
+---
+- name: Wait for Kafka and the required topics before deploying the port router
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_kafka.yml"
+
+- name: Create the port-router project directory
+  ansible.builtin.file:
+    path: "{{ port_router_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the port-router configuration directory
+  ansible.builtin.file:
+    path: "{{ port_router_folder_path }}/config"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+- name: Create the port-router pipeline directory
+  ansible.builtin.file:
+    path: "{{ port_router_folder_path }}/pipeline"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+- name: Find deployed port-router pipeline files
+  ansible.builtin.find:
+    paths: "{{ port_router_folder_path }}/pipeline"
+    file_type: file
+    recurse: false
+  register: port_router_deployed_pipeline_files_result
+  become: true
+
+- name: Remove pipeline files that are no longer managed by the role
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ port_router_deployed_pipeline_files_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  vars:
+    port_router_expected_pipeline_files: >-
+      {{
+        query(
+          'ansible.builtin.fileglob',
+          project_root + '/roles/port_router/files/pipeline/*'
+        )
+        | map('basename')
+        | list
+      }}
+  when: (item.path | basename) not in port_router_expected_pipeline_files
+  register: port_router_removed_pipeline_files_result
+  become: true
+
+- name: Copy the port-router pipeline files
+  ansible.builtin.copy:
+    src: "{{ project_root }}/roles/port_router/files/pipeline/"
+    dest: "{{ port_router_folder_path }}/pipeline/"
+    mode: "0644"
+    directory_mode: "0755"
+    owner: root
+    group: root
+  register: port_router_pipeline_files_result
+  become: true
+
+- name: Find deployed port-router configuration files
+  ansible.builtin.find:
+    paths: "{{ port_router_folder_path }}/config"
+    file_type: file
+    recurse: false
+  register: port_router_deployed_config_files_result
+  become: true
+
+- name: Remove configuration files that are no longer managed by the role
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ port_router_deployed_config_files_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  vars:
+    port_router_expected_config_files: >-
+      {{
+        query(
+          'ansible.builtin.fileglob',
+          project_root + '/roles/port_router/files/config/*'
+        )
+        | map('basename')
+        | list
+      }}
+  when: (item.path | basename) not in port_router_expected_config_files
+  register: port_router_removed_config_files_result
+  become: true
+
+- name: Copy the port-router configuration files
+  ansible.builtin.copy:
+    src: "{{ project_root }}/roles/port_router/files/config/"
+    dest: "{{ port_router_folder_path }}/config/"
+    mode: "0644"
+    directory_mode: "0755"
+    owner: root
+    group: root
+  register: port_router_config_files_result
+  become: true
+
+- name: Render the port-router Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/port_router/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ port_router_folder_path }}"
+
+- name: Deploy the port-router Compose project
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ port_router_folder_path }}"
+    common_compose_external_config_changed: >-
+      {{
+        port_router_pipeline_files_result.changed
+        or port_router_config_files_result.changed
+        or (port_router_removed_pipeline_files_result.changed | default(false))
+        or (port_router_removed_config_files_result.changed | default(false))
+      }}
+    common_compose_external_config_requires_recreate: >-
+      {{
+        port_router_config_files_result.changed
+        or (port_router_removed_config_files_result.changed | default(false))
+      }}
+
+- name: Confirm the port-router pipeline is healthy
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_container_health.yml"
+  vars:
+    common_healthcheck_container_name: "{{ port_router_service_name }}"
+    common_healthcheck_retries: 48
+    common_healthcheck_delay: 5

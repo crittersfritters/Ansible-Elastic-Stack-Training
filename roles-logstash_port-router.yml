@@ -1,0 +1,5 @@
+---
+- name: Deploy the mission-data port router
+  hosts: port_router_nodes
+  roles:
+    - role: port_router

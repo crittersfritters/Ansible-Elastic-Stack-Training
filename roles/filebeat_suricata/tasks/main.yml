@@ -1,0 +1,85 @@
+---
+- name: Wait for Kafka and the required topics before deploying Suricata Filebeat
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_kafka.yml"
+
+- name: Verify the Suricata log directory exists
+  ansible.builtin.stat:
+    path: "{{ suricata_logs_dir }}"
+    follow: true
+  register: filebeat_suricata_log_directory_result
+  become: true
+
+- name: Require the Suricata log directory to be available
+  ansible.builtin.assert:
+    that:
+      - filebeat_suricata_log_directory_result.stat.exists
+      - filebeat_suricata_log_directory_result.stat.isdir
+    fail_msg: "Suricata log directory {{ suricata_logs_dir }} does not exist or is not a directory."
+
+- name: Create the Suricata Filebeat project directory
+  ansible.builtin.file:
+    path: "{{ filebeat_suricata_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the persistent Suricata Filebeat registry directory
+  ansible.builtin.file:
+    path: "{{ filebeat_suricata_folder_path }}/data"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: root
+  become: true
+
+- name: Render the Suricata Filebeat configuration
+  ansible.builtin.template:
+    src: "{{ project_root }}/roles/filebeat_suricata/templates/filebeat.yml.j2"
+    dest: "{{ filebeat_suricata_folder_path }}/filebeat.yml"
+    mode: "0644"
+    owner: root
+    group: root
+  register: filebeat_suricata_config_result
+  become: true
+
+- name: Render the Suricata Filebeat Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/filebeat_suricata/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ filebeat_suricata_folder_path }}"
+
+- name: Deploy the Suricata Filebeat Compose project
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ filebeat_suricata_folder_path }}"
+    common_compose_external_config_changed: >-
+      {{ filebeat_suricata_config_result.changed }}
+    common_compose_external_config_requires_recreate: true
+
+- name: Confirm the Suricata Filebeat configuration is healthy
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_container_health.yml"
+  vars:
+    common_healthcheck_container_name: "{{ filebeat_suricata_container_name }}"
+    common_healthcheck_retries: 24
+    common_healthcheck_delay: 5
+
+- name: Verify the Suricata log mount is readable inside Filebeat
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - "{{ filebeat_suricata_container_name }}"
+      - /bin/sh
+      - -ec
+      - 'test -r "$1" && test -x "$1"'
+      - sh
+      - "{{ suricata_logs_dir }}"
+  changed_when: false
+  become: true

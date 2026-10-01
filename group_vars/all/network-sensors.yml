@@ -1,0 +1,9 @@
+---
+# Sensor log locations supplied by the learner's Zeek and Suricata setup.
+suricata_logs_dir: /var/log/suricata
+suricata_events_path: "{{ suricata_logs_dir }}/eve.json"
+zeek_logs_root: /opt/zeek/logs
+zeek_logs_dir: "{{ zeek_logs_root }}/current"
+
+# Sensor-owned logs are mounted read-only without automatic SELinux relabeling.
+sensor_log_bind_options: ro

@@ -1,42 +1,36 @@
-# Ansible Elastic Stack Training Lab — first Ansible role
+# Ansible Elastic Stack Training Lab — complete Ansible checkpoint
 
-This checkpoint begins the transition from the proven manual lab to an
-Ansible-managed one. The complete manual implementation remains available on
-`answers/01-manual`.
+This answer checkpoint has converted the proven manual lab into seven
+independent, Ansible-managed Docker Compose projects on one Linux host. The
+manual implementation remains available on `answers/01-manual`, and the first
+role transition remains available on `answers/02-first-role`.
 
-Only host preparation and Elasticsearch have been converted here. This small first step exposes the inventory, variables, templates, shared tasks, and idempotent deployment pattern before it is repeated across the other six projects.
+The roles manage Elasticsearch, Kibana, Kafka, processing Logstash, port-router Logstash, Zeek Filebeat, and Suricata Filebeat. GitLab remains a separate bootstrap project and is deliberately outside Ansible ownership.
 
-## Transition boundary
-
-Stop all seven manual Compose projects in the reverse-order sequence documented
-on `answers/01-manual` before checking out and deploying this state. The
-Ansible projects reuse the same container names and host ports from new project
-directories under `/var/docker`; they cannot safely start beside the earlier
-manual containers.
-
-GitLab is separate. Leave the `gitlab` container running and do not remove or
-alter `/var/training/gitlab`.
+Before deploying, stop the manual projects using the reverse-order instructions
+on `answers/01-manual`. Their containers use the same names and ports as the
+managed projects under `/var/docker`. Leave the separate GitLab project
+running.
 
 ## Prerequisites
 
 - a maintained Linux host with Docker Engine and the Compose plugin
-- a dedicated `ansible` account reachable over SSH at `training-lab.local`
+- Zeek and Suricata installed as described in [docs/sensor-host-setup.md](docs/sensor-host-setup.md)
+- an `ansible` account reachable over SSH at `training-lab.local`
+- the hostname and port contract in [docs/reference-contract.md](docs/reference-contract.md)
 - Ansible Core and the collections pinned in `requirements.yml`
-- the hostname contract in [docs/reference-contract.md](docs/reference-contract.md)
 
-## Deploy the first managed project
+## Deploy the complete stack
 
-Install the collections, verify the inventory, prepare the host, and deploy Elasticsearch. Before the Vault checkpoint, supply the passworded account's become credential interactively:
+Install the collections, verify the single-host inventory, and run the ordered aggregate playbook. Before Vault is introduced, provide the become credential interactively:
 
 ```bash
 ansible-galaxy collection install -r requirements.yml
 ansible-inventory --graph
 ansible all -m ping
-ansible-playbook roles-system_files_setup.yml --ask-become-pass
-ansible-playbook roles-elasticsearch_nodes.yml --ask-become-pass
+ansible-playbook roles-all.yml --ask-become-pass
 ```
 
-Inspect `/var/docker/elasticsearch` after the run. Re-run both playbooks and
-confirm that a converged host reports no changes. The
-`answers/03-full-ansible` branch applies the same design to Kafka, Kibana, both
-Logstash projects, and both Filebeat projects.
+The aggregate playbook prepares shared host paths once, then reconciles services in dependency order. Each component also retains its focused playbook for development and troubleshooting.
+
+Re-run `roles-all.yml --ask-become-pass` without changing the repository and inspect the recap for idempotence. The next checkpoint introduces the plaintext-to-Ansible-Vault progression, and the later CI checkpoint adds protected deployment automation.

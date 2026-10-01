@@ -1,0 +1,4 @@
+---
+logstash_pipeline_container_name: logstash_pipeline
+logstash_pipeline_folder_path: "{{ docker_path }}/{{ logstash_pipeline_container_name }}"
+logstash_pipeline_container_port: "9600"

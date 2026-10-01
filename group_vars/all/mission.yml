@@ -1,0 +1,3 @@
+---
+# Timezone represented by mission records that do not include an offset.
+mission_event_timezone: UTC

@@ -1,0 +1,23 @@
+services:
+  {{ elasticsearch_container_name }}:
+    image: {{ elastic_docker_registry }}/{{ elasticsearch_container_name }}/{{ elasticsearch_container_name }}:{{ elastic_docker_image_tag }}
+    container_name: {{ elasticsearch_container_name }}
+    network_mode: host
+    extra_hosts:
+{% for alias in training_lab_container_aliases %}
+      - "{{ alias }}={{ training_lab_loopback_address }}"
+{% endfor %}
+    restart: unless-stopped
+    volumes:
+      - "{{ elasticsearch_folder_path }}/data:/usr/share/elasticsearch/data:Z"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+      - network.host=127.0.0.1
+    healthcheck:
+      # Wait for primary shards to be active before dependent roles proceed.
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
+      interval: 10s
+      timeout: 10s
+      retries: 24

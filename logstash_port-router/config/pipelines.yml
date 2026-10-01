@@ -1,2 +1,0 @@
-- pipeline.id: logstash_port-router
-  path.config: "/usr/share/logstash/pipeline/logstash_port-router.conf"

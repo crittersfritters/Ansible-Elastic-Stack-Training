@@ -1,0 +1,230 @@
+---
+- name: Create the Elasticsearch project directory
+  ansible.builtin.file:
+    path: "{{ elasticsearch_folder_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true
+
+- name: Create the Elasticsearch data directory for container UID 1000
+  ansible.builtin.file:
+    path: "{{ elasticsearch_folder_path }}/data"
+    state: directory
+    mode: "0770"
+    owner: "1000"
+    group: "0"
+  become: true
+
+- name: Render the Elasticsearch Docker Compose definition
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/update_from_template.yml"
+  vars:
+    common_compose_template_source: >-
+      {{ project_root }}/roles/elasticsearch/templates/docker-compose.yml.j2
+    common_compose_project_path: "{{ elasticsearch_folder_path }}"
+
+- name: Deploy the Elasticsearch Compose project
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/deploy_compose.yml"
+  vars:
+    common_compose_project_path: "{{ elasticsearch_folder_path }}"
+
+- name: Confirm Elasticsearch is healthy
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_elasticsearch.yml"
+
+- name: Inspect the Training Lab index templates
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/_index_template/{{ item.template_name }}"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+      - 404
+  loop: "{{ elastic_destinations }}"
+  loop_control:
+    label: "{{ item.template_name }}"
+  register: elasticsearch_template_checks
+  changed_when: false
+
+- name: Create or update drifted Training Lab index templates
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/_index_template/{{ item.item.template_name }}"
+    method: PUT
+    body_format: json
+    body:
+      index_patterns:
+        - "{{ item.item.index_pattern }}"
+      priority: 100
+      template:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: true
+          properties: "{{ elastic_common_properties }}"
+    status_code: 200
+  loop: "{{ elasticsearch_template_checks.results }}"
+  loop_control:
+    label: "{{ item.item.template_name }}"
+  vars:
+    elastic_existing_template: >-
+      {{
+        (
+          (item.json | default({})).get('index_templates', [])
+          | first
+          | default({})
+        ).get('index_template', {})
+      }}
+    elastic_existing_template_settings: >-
+      {{ elastic_existing_template.get('template', {}).get('settings', {}) }}
+    elastic_existing_template_index_settings: >-
+      {{
+        elastic_existing_template_settings.get(
+          'index', elastic_existing_template_settings
+        )
+      }}
+    elastic_existing_template_mappings: >-
+      {{ elastic_existing_template.get('template', {}).get('mappings', {}) }}
+    elastic_existing_template_properties: >-
+      {{ elastic_existing_template_mappings.get('properties', {}) }}
+  when: >-
+    item.status == 404
+    or elastic_existing_template.get('index_patterns', []) != [item.item.index_pattern]
+    or (elastic_existing_template.get('priority', 0) | int) != 100
+    or (elastic_existing_template_index_settings.get('number_of_shards', 0) | int) != 1
+    or (elastic_existing_template_index_settings.get('number_of_replicas', -1) | int) != 0
+    or elastic_existing_template_mappings.get('dynamic', true) != true
+    or (
+      elastic_existing_template_properties
+      | combine(elastic_common_properties, recursive=true)
+    ) != elastic_existing_template_properties
+
+- name: Check the Training Lab backing indices
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/{{ item.backing_index }}"
+    method: HEAD
+    status_code:
+      - 200
+      - 404
+  loop: "{{ elastic_destinations }}"
+  loop_control:
+    label: "{{ item.backing_index }}"
+  register: elasticsearch_backing_index_checks
+  changed_when: false
+
+- name: Create missing Training Lab backing indices
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/{{ item.item.backing_index }}"
+    method: PUT
+    body_format: json
+    body: {}
+    status_code: 200
+  loop: "{{ elasticsearch_backing_index_checks.results }}"
+  loop_control:
+    label: "{{ item.item.backing_index }}"
+  when: item.status == 404
+
+- name: Inspect mappings on the Training Lab backing indices
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/{{ item.backing_index }}/_mapping"
+    method: GET
+    return_content: true
+    status_code: 200
+  loop: "{{ elastic_destinations }}"
+  loop_control:
+    label: "{{ item.backing_index }}"
+  register: elasticsearch_backing_mapping_checks
+  changed_when: false
+
+- name: Apply the current core mapping to drifted backing indices
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/{{ item.item.backing_index }}/_mapping"
+    method: PUT
+    body_format: json
+    body:
+      dynamic: true
+      properties: "{{ elastic_common_properties }}"
+    status_code: 200
+  loop: "{{ elasticsearch_backing_mapping_checks.results }}"
+  loop_control:
+    label: "{{ item.item.backing_index }}"
+  vars:
+    elastic_existing_backing_properties: >-
+      {{
+        (item.json | default({}))
+        .get(item.item.backing_index, {})
+        .get('mappings', {})
+        .get('properties', {})
+      }}
+  when: >-
+    (
+      elastic_existing_backing_properties
+      | combine(elastic_common_properties, recursive=true)
+    ) != elastic_existing_backing_properties
+
+- name: Inspect existing Training Lab aliases
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:9200/_alias/{{ item.write_alias }}"
+    method: GET
+    status_code:
+      - 200
+      - 404
+  loop: "{{ elastic_destinations }}"
+  loop_control:
+    label: "{{ item.write_alias }}"
+  register: elasticsearch_alias_checks
+  changed_when: false
+
+- name: Reconcile the Training Lab write aliases
+  ansible.builtin.uri:
+    url: http://127.0.0.1:9200/_aliases
+    method: POST
+    body_format: json
+    body:
+      actions: >-
+        {{
+          (
+            [
+              {
+                'remove': {
+                  'index': '*',
+                  'alias': item.item.write_alias
+                }
+              }
+            ]
+            if item.status == 200
+            else []
+          )
+          +
+          [
+            {
+              'add': {
+                'index': item.item.backing_index,
+                'alias': item.item.write_alias,
+                'is_write_index': true
+              }
+            }
+          ]
+        }}
+    status_code: 200
+  loop: "{{ elasticsearch_alias_checks.results }}"
+  loop_control:
+    label: "{{ item.item.write_alias }} -> {{ item.item.backing_index }}"
+  vars:
+    elastic_existing_alias_indices: >-
+      {{ (item.json | default({})).keys() | list }}
+    elastic_existing_alias_definition: >-
+      {{
+        (item.json | default({}))
+        .get(item.item.backing_index, {})
+        .get('aliases', {})
+        .get(item.item.write_alias, {})
+      }}
+  when: >-
+    item.status == 404
+    or elastic_existing_alias_indices | length != 1
+    or item.item.backing_index not in elastic_existing_alias_indices
+    or elastic_existing_alias_definition.get('is_write_index', false) != true

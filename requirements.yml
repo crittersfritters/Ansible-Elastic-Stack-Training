@@ -1,0 +1,8 @@
+---
+collections:
+  - name: ansible.posix
+    version: 2.2.2
+  - name: community.docker
+    # The 4.x collection line supplies docker_compose_v2 without making the
+    # course dependent on one distribution's Ansible package set.
+    version: 4.8.8

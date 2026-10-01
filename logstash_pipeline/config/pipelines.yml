@@ -1,6 +1,0 @@
-- pipeline.id: zeek
-  path.config: "/usr/share/logstash/pipeline/zeek.conf"
-- pipeline.id: suricata
-  path.config: "/usr/share/logstash/pipeline/suricata.conf"
-- pipeline.id: grok_pipeline
-  path.config: "/usr/share/logstash/pipeline/grok_pipeline.conf"

@@ -1,0 +1,5 @@
+---
+- name: Prepare the localhost training target
+  hosts: training_lab_hosts
+  roles:
+    - role: system_files_setup

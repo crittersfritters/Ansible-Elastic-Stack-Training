@@ -1,0 +1,32 @@
+---
+- name: Start or update the Docker Compose project
+  community.docker.docker_compose_v2:
+    project_src: "{{ common_compose_project_path }}"
+    services: "{{ common_compose_services | default(omit) }}"
+    state: present
+    remove_orphans: true
+  become: true
+
+- name: Apply changes to externally mounted configuration
+  community.docker.docker_compose_v2:
+    project_src: "{{ common_compose_project_path }}"
+    services: "{{ common_compose_restart_services | default(omit) }}"
+    dependencies: false
+    state: >-
+      {{
+        'present'
+        if common_compose_external_config_requires_recreate
+          | default(false)
+          | bool
+        else 'restarted'
+      }}
+    recreate: >-
+      {{
+        'always'
+        if common_compose_external_config_requires_recreate
+          | default(false)
+          | bool
+        else omit
+      }}
+  when: common_compose_external_config_changed | default(false) | bool
+  become: true

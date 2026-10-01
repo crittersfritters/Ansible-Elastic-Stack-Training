@@ -1,0 +1,15 @@
+---
+- name: Wait for container to become healthy | {{ common_healthcheck_container_name }}
+  community.docker.docker_container_info:
+    name: "{{ common_healthcheck_container_name }}"
+  register: common_container_health_result
+  until:
+    - common_container_health_result.exists | default(false)
+    - >-
+      ((common_container_health_result.container | default({}, true)).get('State', {})
+      .get('Health', {}).get('Status', '')) == 'healthy'
+  retries: "{{ common_healthcheck_retries | default(36) }}"
+  delay: "{{ common_healthcheck_delay | default(5) }}"
+  changed_when: false
+  become: true
+  delegate_to: "{{ common_healthcheck_delegate | default(inventory_hostname) }}"

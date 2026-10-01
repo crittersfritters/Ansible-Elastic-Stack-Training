@@ -1,5 +1,25 @@
-/elasticsearch/data/
-/kafka/data/
-/filebeat_zeek/data/
-/filebeat_suricata/data/
-/kibana/data/
+# Ansible runtime artifacts
+*.retry
+.ansible/
+.cache/
+
+# Python tooling
+__pycache__/
+*.py[cod]
+.venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+
+# Local environment and scratch files
+.env
+.env.*
+!.env.example
+*.tmp
+*.swp
+
+# Starts as a local plaintext file, then is deliberately force-added only
+# after whole-file Ansible Vault encryption.
+group_vars/all/vault.yml

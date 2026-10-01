@@ -1,0 +1,4 @@
+---
+# Image source shared by Elasticsearch, Kibana, Logstash, and Filebeat.
+elastic_docker_registry: docker.elastic.co
+elastic_docker_image_tag: 9.2.8

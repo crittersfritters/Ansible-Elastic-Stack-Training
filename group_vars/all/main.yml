@@ -1,0 +1,48 @@
+---
+# Account used by the controller to reach the same host over SSH. Keeping the
+# transport boundary is deliberate even though the target resolves locally.
+ansible_connection: ssh
+ansible_user: ansible
+ansible_port: 22
+
+# Repository and managed-node deployment paths used by every service role.
+project_root: "{{ playbook_dir }}"
+docker_path: /var/docker
+common_tasks_path: "{{ project_root }}/roles/common/tasks"
+
+# Application aliases are retained even though every service runs on the same
+# Linux host. Docker creates a private /etc/hosts file for each container, so
+# Compose definitions add these aliases explicitly as loopback entries.
+training_lab_loopback_address: 127.0.0.1
+training_lab_host_aliases:
+  - training-lab.local
+  - gitlab.local
+  - elasticsearch.local
+  - elasticsearch
+  - web.local
+  - web
+  - kibana.local
+  - kibana
+  - queue-server.local
+  - queue-server
+  - kafka.local
+  - kafka
+  - network-sensor.local
+  - network-sensor
+  - logstash.local
+  - logstash
+  - logstash-pipeline.local
+  - logstash-pipeline
+  - log-aggregator.local
+  - log-aggregator
+
+training_lab_container_aliases:
+  - elasticsearch.local
+  - web.local
+  - kibana.local
+  - queue-server.local
+  - kafka.local
+  - network-sensor.local
+  - logstash.local
+  - logstash-pipeline.local
+  - log-aggregator.local

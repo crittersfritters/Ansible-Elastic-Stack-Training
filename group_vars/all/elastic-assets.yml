@@ -1,0 +1,100 @@
+---
+# The manual course creates these objects before Ansible takes ownership. The
+# reference roles then reconcile the same contracts through the APIs.
+elastic_destinations:
+  - template_name: training-lab-parsed
+    index_pattern: search-parsed*
+    backing_index: search-parsed
+    write_alias: active-grok-match
+    data_view: search-parsed
+  - template_name: training-lab-unparsed
+    index_pattern: search-unparsed*
+    backing_index: search-unparsed
+    write_alias: active-unparsed
+    data_view: search-unparsed
+  - template_name: training-lab-zeek
+    index_pattern: search-zeek*
+    backing_index: search-zeek
+    write_alias: active-zeek
+    data_view: search-zeek
+  - template_name: training-lab-suricata
+    index_pattern: search-suricata*
+    backing_index: search-suricata
+    write_alias: active-suricata
+    data_view: search-suricata
+
+# A compact shared mapping keeps the lab focused on field behavior while still
+# making templates visibly useful. Source-specific fields remain dynamic.
+elastic_common_properties:
+  "@timestamp":
+    type: date
+  event:
+    properties:
+      action:
+        type: keyword
+      created:
+        type: date
+      original:
+        type: wildcard
+      sequence:
+        type: long
+  _parser:
+    properties:
+      id:
+        type: keyword
+      version:
+        type: keyword
+  source:
+    properties:
+      ip:
+        type: ip
+      port:
+        type: integer
+      bytes:
+        type: long
+      packets:
+        type: long
+  destination:
+    properties:
+      ip:
+        type: ip
+      port:
+        type: integer
+      bytes:
+        type: long
+      packets:
+        type: long
+  network:
+    properties:
+      application:
+        type: keyword
+      transport:
+        type: keyword
+      bytes:
+        type: long
+      packets:
+        type: long
+  rule:
+    properties:
+      name:
+        type: keyword
+  src_ip:
+    type: ip
+  dest_ip:
+    type: ip
+  src_port:
+    type: integer
+  dest_port:
+    type: integer
+  ts:
+    type: double
+  id:
+    properties:
+      orig_h:
+        type: ip
+      orig_p:
+        type: integer
+      resp_h:
+        type: ip
+      resp_p:
+        type: integer

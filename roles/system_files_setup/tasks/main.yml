@@ -1,0 +1,44 @@
+---
+- name: Verify Docker Engine is already installed
+  ansible.builtin.command:
+    argv:
+      - docker
+      - version
+  changed_when: false
+  become: true
+
+- name: Verify the Docker Compose plugin is already installed
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  changed_when: false
+  become: true
+
+- name: Add the Training Lab host aliases
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED BLOCK FOR TRAINING LAB"
+    state: present
+    block: |
+      {{ training_lab_loopback_address }} {{ training_lab_host_aliases | join(' ') }}
+  become: true
+
+- name: Configure the Elasticsearch virtual-memory map limit
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "1048576"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+
+- name: Ensure the Training Lab project root exists
+  ansible.builtin.file:
+    path: "{{ docker_path }}"
+    state: directory
+    mode: "0750"
+    owner: root
+    group: docker
+  become: true

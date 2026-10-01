@@ -1,0 +1,27 @@
+---
+# One physical training host deliberately occupies every service group. Ansible
+# still connects over SSH as the ansible account so the controller, inventory,
+# privilege-escalation, and CI mechanics resemble the deployed environment.
+all:
+  children:
+    training_lab_hosts:
+      hosts:
+        training-lab.local:
+    web_servers:
+      hosts:
+        training-lab.local:
+    queue_nodes:
+      hosts:
+        training-lab.local:
+    elasticsearch_nodes:
+      hosts:
+        training-lab.local:
+    network_sensors:
+      hosts:
+        training-lab.local:
+    logstash_nodes:
+      hosts:
+        training-lab.local:
+    port_router_nodes:
+      hosts:
+        training-lab.local:

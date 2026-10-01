@@ -1,0 +1,9 @@
+---
+- name: Wait for the Elasticsearch health check
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/wait_for_container_health.yml"
+  vars:
+    common_healthcheck_container_name: elasticsearch
+    common_healthcheck_delegate: "{{ groups['elasticsearch_nodes'] | first }}"
+    common_healthcheck_retries: 48
+    common_healthcheck_delay: 5

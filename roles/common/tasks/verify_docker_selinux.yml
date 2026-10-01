@@ -1,0 +1,28 @@
+---
+- name: Inspect Docker daemon security options on SELinux hosts
+  ansible.builtin.command:
+    argv:
+      - docker
+      - info
+      - --format
+      - "{{ '{{json .SecurityOptions}}' }}"
+  register: common_docker_security_options_result
+  changed_when: false
+  check_mode: false
+  become: true
+  when:
+    - (ansible_selinux | default({})).get('status', 'disabled') == 'enabled'
+
+- name: Require Docker SELinux integration on SELinux hosts
+  ansible.builtin.assert:
+    that:
+      - >-
+        'name=selinux'
+        in (common_docker_security_options_result.stdout | from_json)
+    fail_msg: >-
+      SELinux is enabled on the host, but Docker does not report
+      name=selinux in its security options. Configure and validate the shared
+      Docker daemon before deploying Training Lab, then recreate existing
+      containers from their owning Compose projects so confinement applies.
+  when:
+    - (ansible_selinux | default({})).get('status', 'disabled') == 'enabled'

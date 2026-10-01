@@ -1,0 +1,4 @@
+---
+# The role selects the dedicated SELinux log-reader domain when SELinux is
+# enabled. An empty list keeps the Compose definition portable elsewhere.
+filebeat_suricata_security_options: []

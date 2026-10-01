@@ -68,8 +68,8 @@ earlier direct-path checkpoint.
 
 GitLab is an eighth, independently managed Compose project under
 `/var/training/gitlab` and must not be removed, restarted, or adopted by
-Training Lab automation. It uses the
-`gitlab/gitlab-ee:19.4.1-ee.0` baseline,
+Training Lab automation. It preserves the existing
+`gitlab/gitlab-ee:19.4.1-ee.0` baseline, uses
 `http://gitlab.local:8929` as its external URL, advertises SSH port `2424`,
 and mounts `config`, `logs`, and `data` from that project root. A version or
 edition change is outside the course bootstrap contract.
@@ -86,6 +86,13 @@ edition change is outside the course bootstrap contract.
 - Zeek stable mount root: `/opt/zeek/logs`
 - Zeek active JSON logs: `/opt/zeek/logs/current`
 - Suricata events: `/var/log/suricata/eve.json`
+
+The Zeek paths above are declared interfaces, not proof that the active files
+physically reside below the stable root. The answer resolves both paths
+canonically. If the active directory is outside the canonical root, it receives
+its own source-equals-destination read-only bind. Changing the active target
+requires rerunning the sensor role. Both native sensor sources are mounted
+read-only without `:z` or `:Z` relabeling.
 
 ## Kafka contract
 
@@ -143,3 +150,11 @@ The isolated course intentionally uses host networking, plaintext protocols,
 and no application authentication. It is not production guidance. Secrets used
 for SSH privilege escalation begin as local plaintext learning data and then
 progress to whole-file Ansible Vault encryption and a masked GitLab variable.
+
+Docker remains operator-owned, but on a host with SELinux enabled it must
+report SELinux integration before deployment. Existing containers must be
+recreated after that daemon capability is enabled. The answer expects ordinary
+containers, including Zeek Filebeat, to run as `container_t`; Suricata
+Filebeat alone uses `container_logreader_t`. Its native log tree keeps the
+host's normal log label (`var_log_t` on the Fedora reference host) and must not
+be relabeled as container storage.

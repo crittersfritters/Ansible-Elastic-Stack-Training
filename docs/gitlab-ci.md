@@ -130,7 +130,7 @@ Service configuration remains in the owning role. Do not place all seven
 Compose deployments in the host-preparation role merely because they share a
 host.
 
-## Job template
+## Job bootstrap
 
 Every mutating job extends one common deployment template. The template is
 responsible for:
@@ -143,6 +143,26 @@ responsible for:
 - rejecting a missing or plaintext Vault variable file;
 - requiring the masked Vault password for every mutating job; and
 - exposing the repository's executable Vault password client to Ansible.
+
+The parent pipeline's non-mutating answer-sheet validation job needs the same
+credential and dependency bootstrap. Static validation resolves inventory and
+performs Ansible syntax checks, so it must reject a missing or plaintext Vault
+file, require the protected password variable, verify decryption with both
+streams discarded, and install the pinned collections before running the
+suite. Apply this boundary to every future CI job that evaluates Ansible
+inventory or syntax, even if the job never changes the host.
+
+Configure `ANSIBLE_VAULT_PASSWORD` in GitLab with Type set to `Variable`, not
+`File`, then mark it masked and protected. Keep
+`CI_DEBUG_TRACE` disabled. The password client is for Ansible to invoke; a job
+must never execute or trace `vault_password.sh` directly.
+
+Resolved inventory is secret-bearing data after Vault is loaded. CI must not
+print, publish, save, or pipe raw `ansible-inventory --list` or `--host`
+results through `tee`. The answer validator streams inventory JSON directly
+into its sanitizer and reports only fixed contract checks. Plain
+`ansible-inventory --graph` output is suitable for a structural diagnostic;
+do not add `--vars`.
 
 Do not write dependencies into a system Python environment from each job. Do
 not assume the shell runner's interactive profile runs in CI. Every required
@@ -225,6 +245,8 @@ branch.
 | Intentionally invalid selected configuration | Owning job fails and later stages do not run |
 | Retry after correction | Failed stage succeeds without overlapping another deployment |
 | Two quick deployable pushes | Resource-group behavior prevents concurrent mutation of the host |
+| Parent validation with the correct protected Vault variable | Static checks succeed without decrypted variables or inventory JSON in the job log or artifacts |
+| Parent validation with a deliberately incorrect Vault variable | Validation fails before inventory evaluation and emits only a generic credential error |
 
 For each test, record the comparison base, changed paths, selected jobs, skipped
 jobs, execution order, and final service health. The pipeline graph alone does

@@ -3,7 +3,7 @@ filebeat.inputs:
     id: zeek-json
     enabled: true
     paths:
-      - "{{ zeek_logs_dir }}/*.log"
+      - "{{ filebeat_zeek_resolved_logs_dir }}/*.log"
     prospector.scanner.fingerprint.length: 64
     parsers:
       - ndjson:

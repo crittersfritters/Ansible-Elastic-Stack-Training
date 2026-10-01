@@ -1,4 +1,8 @@
 ---
+- name: Verify Docker participates in host SELinux confinement
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/verify_docker_selinux.yml"
+
 - name: Wait for Kafka and the required topics before deploying Zeek Filebeat
   ansible.builtin.include_tasks:
     file: "{{ common_tasks_path }}/wait_for_kafka.yml"
@@ -16,6 +20,65 @@
       - filebeat_zeek_log_directory_result.stat.exists
       - filebeat_zeek_log_directory_result.stat.isdir
     fail_msg: "Zeek log directory {{ zeek_logs_dir }} does not exist or is not a directory."
+
+- name: Resolve the stable Zeek log root
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - --canonicalize-existing
+      - --
+      - "{{ zeek_logs_root }}"
+  register: filebeat_zeek_resolved_logs_root_result
+  changed_when: false
+  check_mode: false
+  become: true
+
+- name: Resolve the active Zeek log directory
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - --canonicalize-existing
+      - --
+      - "{{ zeek_logs_dir }}"
+  register: filebeat_zeek_resolved_logs_dir_result
+  changed_when: false
+  check_mode: false
+  become: true
+
+- name: Require safe canonical Zeek log paths
+  ansible.builtin.assert:
+    that:
+      - filebeat_zeek_resolved_logs_root_result.stdout | length > 0
+      - filebeat_zeek_resolved_logs_dir_result.stdout | length > 0
+      - filebeat_zeek_resolved_logs_root_result.stdout.startswith('/')
+      - filebeat_zeek_resolved_logs_dir_result.stdout.startswith('/')
+      - filebeat_zeek_resolved_logs_root_result.stdout != '/'
+      - filebeat_zeek_resolved_logs_dir_result.stdout != '/'
+    fail_msg: >-
+      Zeek log paths must resolve to existing absolute directories other than
+      the host root.
+
+- name: Record the canonical Zeek log paths
+  ansible.builtin.set_fact:
+    filebeat_zeek_resolved_logs_root: >-
+      {{ filebeat_zeek_resolved_logs_root_result.stdout }}
+    filebeat_zeek_resolved_logs_dir: >-
+      {{ filebeat_zeek_resolved_logs_dir_result.stdout }}
+
+- name: Select any external Zeek active-log mount
+  ansible.builtin.set_fact:
+    filebeat_zeek_external_log_mounts: >-
+      {{
+        []
+        if (
+          filebeat_zeek_resolved_logs_dir
+          == filebeat_zeek_resolved_logs_root
+          or filebeat_zeek_resolved_logs_dir.startswith(
+            filebeat_zeek_resolved_logs_root.rstrip('/') ~ '/'
+          )
+        )
+        else [filebeat_zeek_resolved_logs_dir]
+      }}
 
 - name: Create the Zeek Filebeat project directory
   ansible.builtin.file:
@@ -78,8 +141,17 @@
       - "{{ filebeat_zeek_container_name }}"
       - /bin/sh
       - -ec
-      - 'test -r "$1" && test -x "$1"'
+      - |
+        set -eu
+        found=0
+        for log_path in "$1"/*.log; do
+          [ -f "$log_path" ] || continue
+          [ -s "$log_path" ] || continue
+          head -c 1 "$log_path" >/dev/null
+          found=1
+        done
+        [ "$found" -eq 1 ]
       - sh
-      - "{{ zeek_logs_root }}"
+      - "{{ filebeat_zeek_resolved_logs_dir }}"
   changed_when: false
   become: true

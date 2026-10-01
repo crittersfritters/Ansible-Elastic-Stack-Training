@@ -17,6 +17,39 @@
       - filebeat_suricata_log_directory_result.stat.isdir
     fail_msg: "Suricata log directory {{ suricata_logs_dir }} does not exist or is not a directory."
 
+- name: Verify the Suricata EVE file exists
+  ansible.builtin.stat:
+    path: "{{ suricata_events_path }}"
+    follow: true
+  register: filebeat_suricata_event_file_result
+  become: true
+
+- name: Require a nonempty regular Suricata EVE file
+  ansible.builtin.assert:
+    that:
+      - filebeat_suricata_event_file_result.stat.exists | default(false)
+      - filebeat_suricata_event_file_result.stat.isreg | default(false)
+      - (filebeat_suricata_event_file_result.stat.size | default(0) | int) > 0
+    fail_msg: >-
+      Suricata event source {{ suricata_events_path }} is absent, is not a
+      regular file, or is empty.
+
+- name: Verify Docker participates in host SELinux confinement
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/verify_docker_selinux.yml"
+
+- name: Select the Suricata collector security options
+  ansible.builtin.set_fact:
+    filebeat_suricata_security_options: >-
+      {{
+        ['label=type:container_logreader_t']
+        if (
+          (ansible_selinux | default({})).get('status', 'disabled')
+          == 'enabled'
+        )
+        else []
+      }}
+
 - name: Create the Suricata Filebeat project directory
   ansible.builtin.file:
     path: "{{ filebeat_suricata_folder_path }}"
@@ -70,6 +103,35 @@
     common_healthcheck_retries: 24
     common_healthcheck_delay: 5
 
+- name: Inspect the Suricata Filebeat process label
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.ProcessLabel}}' }}"
+      - "{{ filebeat_suricata_container_name }}"
+  register: filebeat_suricata_process_label_result
+  changed_when: false
+  check_mode: false
+  become: true
+  when:
+    - (ansible_selinux | default({})).get('status', 'disabled') == 'enabled'
+
+- name: Require the dedicated Suricata log-reader process type
+  ansible.builtin.assert:
+    that:
+      - (filebeat_suricata_process_label_result.stdout.split(':') | length) >= 3
+      - >-
+        filebeat_suricata_process_label_result.stdout.split(':')[2]
+        == 'container_logreader_t'
+    fail_msg: >-
+      The Suricata Filebeat container is not running as
+      container_logreader_t. Preserve the native sensor log labels and correct
+      Docker SELinux integration instead of relabeling /var/log/suricata.
+  when:
+    - (ansible_selinux | default({})).get('status', 'disabled') == 'enabled'
+
 - name: Verify the Suricata log mount is readable inside Filebeat
   ansible.builtin.command:
     argv:
@@ -78,8 +140,8 @@
       - "{{ filebeat_suricata_container_name }}"
       - /bin/sh
       - -ec
-      - 'test -r "$1" && test -x "$1"'
+      - 'test -s "$1" && head -c 1 "$1" >/dev/null'
       - sh
-      - "{{ suricata_logs_dir }}"
+      - "{{ suricata_events_path }}"
   changed_when: false
   become: true

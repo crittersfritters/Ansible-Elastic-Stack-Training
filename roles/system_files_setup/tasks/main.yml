@@ -16,6 +16,10 @@
   changed_when: false
   become: true
 
+- name: Verify Docker participates in host SELinux confinement
+  ansible.builtin.include_tasks:
+    file: "{{ common_tasks_path }}/verify_docker_selinux.yml"
+
 - name: Add the Training Lab host aliases
   ansible.builtin.blockinfile:
     path: /etc/hosts

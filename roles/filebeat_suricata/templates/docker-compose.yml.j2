@@ -4,10 +4,15 @@ services:
     container_name: {{ filebeat_suricata_container_name }}
     user: root
     network_mode: host
+    security_opt: {{ filebeat_suricata_security_options }}
     extra_hosts:
 {% for alias in training_lab_container_aliases %}
       - "{{ alias }}={{ training_lab_loopback_address }}"
 {% endfor %}
+    labels:
+      org.training-lab.sensor: suricata
+      org.training-lab.suricata.logs-root: "{{ suricata_logs_dir }}"
+      org.training-lab.suricata.events: "{{ suricata_events_path }}"
     restart: unless-stopped
     volumes:
       - "{{ filebeat_suricata_folder_path }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"

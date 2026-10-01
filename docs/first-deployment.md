@@ -23,6 +23,26 @@ sudo test -s /var/log/suricata/eve.json
 sudo ss -ltnp
 ```
 
+When the host uses SELinux, confirm Docker reports `name=selinux` in its
+security options before deploying anything under `/var/docker`. Inspect the
+already-bootstrapped GitLab container as well: an empty process label or
+`spc_t` means the container predates working Docker SELinux integration and
+must be recreated from its owning Compose project after its persistent state
+is checked. Follow the controlled migration in the
+[GitLab bootstrap guide](../bootstrap/gitlab/README.md) rather than changing
+the shared daemon during an Ansible run.
+
+```bash
+getenforce
+docker info --format '{{json .SecurityOptions}}'
+docker inspect --format '{{.ProcessLabel}}' gitlab
+```
+
+Do not continue on an SELinux-enabled host until Docker confinement works and
+the installed container policy provides the dedicated log-reader type used by
+the Suricata collector. The playbooks verify this prerequisite but do not
+reconfigure or restart the shared Docker daemon.
+
 Zeek records must be newline-delimited JSON. Inspect one complete line instead
 of assuming a `.log` suffix implies the required format. Confirm
 `vm.max_map_count` can be changed by the Ansible account's intended privilege
@@ -58,9 +78,9 @@ ansible training_lab_hosts -b -m command -a 'id -u'
 
 The graph must show one host in `training_lab_hosts` and all six service
 groups. The targeted debug commands must report `ansible_connection=ssh`,
-`ansible_user=ansible`, and `ansible_port=22`. Review `site-config.yml` to
-confirm that the inventory does not replace its hostname with `127.0.0.1`
-through `ansible_host`.
+`ansible_user=ansible`, and `ansible_port=22`. The static validator confirms
+that the inventory does not replace its hostname with `127.0.0.1` through
+`ansible_host`.
 
 Do not use `ansible-inventory --host`, `ansible-inventory --list`, or
 `ansible-inventory --graph --vars` after secret variables exist. Those forms
@@ -71,13 +91,19 @@ non-secret variables provide the required evidence without dumping hostvars.
 ## 3. Run static checks before mutation
 
 ```bash
-ansible-inventory --graph
-ansible-playbook --syntax-check roles-all.yml
+bash validation/validate.sh static
 ```
 
-Both commands must exit successfully. The maintained validation harness is
-introduced on the final `answer-sheet` branch; this checkpoint intentionally
-uses the Ansible-native checks available at this phase.
+Resolve failures. A `SKIP` for an unavailable Docker or Ansible executable
+means that check was not performed; it is not passing evidence.
+
+On Fedora, PAM or systemd may append an OSC 3008 terminal-context marker while
+Ansible performs privilege escalation. Ansible can then warn that a module
+invocation had junk after its JSON data. Treat that warning as cosmetic only
+when the affected task reports success, the play recap reports `failed=0`, and
+the task's documented postcondition passes. Do not weaken the sudo or PAM
+policy, or disable fingerprint authentication, merely to suppress the warning.
+A failed task or unrelated trailing output still requires investigation.
 
 ## 4. Deploy in the reference order
 
@@ -104,42 +130,28 @@ resource lock.
 
 ## 5. Prove runtime behavior
 
-Record the service state and query each local API:
+Run read-only checks plus native parser/configuration checks:
 
 ```bash
-docker inspect --format \
-  '{{.Name}} status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' \
-  elasticsearch kafka kafka-ui kibana logstash_pipeline logstash_port-router \
-  filebeat_zeek filebeat_suricata
-docker inspect --format \
-  '{{.Name}} status={{.State.Status}} exit={{.State.ExitCode}}' \
-  kafka-topics-init
-curl -fsS 'http://127.0.0.1:9200/_cluster/health?pretty'
-curl -fsS 'http://127.0.0.1:5601/api/status'
-curl -fsS 'http://127.0.0.1:9600/_node/pipelines?pretty'
-curl -fsS 'http://127.0.0.1:9601/_node/pipelines?pretty'
-docker exec kafka /opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server 127.0.0.1:9092 --list
+bash validation/validate.sh all --config-tests
 ```
 
-Then send each mission fixture as one newline-delimited record to TCP/4444:
+Then deliberately add the mission fixtures and verify their destinations:
 
 ```bash
-for sample_file in samples/mission/*.log; do
-  while IFS= read -r sample_record; do
-    printf '%s\n' "$sample_record" | nc -w 3 127.0.0.1 4444
-  done < "$sample_file"
-done
-unset sample_file sample_record
+bash validation/validate.sh runtime --send-samples
 ```
-
-Use Kibana or the Elasticsearch search API to compare the indexed documents
-with `samples/mission/expected-outcomes.yml`. The final `answer-sheet` branch
-adds an automated runtime validator for the same contract.
 
 Also generate fresh network traffic and record one new Zeek and one new
 Suricata document. A fixture already present from an earlier run is not proof
 that the current collector path works.
+
+Sensor evidence must also show that the Zeek collector has read-only access to
+both the canonical stable root and any external canonical active target, the
+Suricata collector runs as `container_logreader_t` when SELinux is active, the
+native EVE file retains its host log label, and each collector can byte-read a
+real nonempty source file. Native sensor mounts must report `RW=false` without
+`z` or `Z` mode tokens.
 
 Manual observations should include:
 
@@ -157,10 +169,12 @@ Manual observations should include:
 Run the same full playbook a second time and retain its recap:
 
 ```bash
-mkdir -p .evidence
+mkdir -p validation/evidence
 set -o pipefail
 ansible-playbook roles-all.yml \
-  | tee .evidence/ansible-idempotence.txt
+  | tee validation/evidence/ansible-idempotence.txt
+bash validation/validate.sh static \
+  --idempotence-log validation/evidence/ansible-idempotence.txt
 ```
 
 Every second-run host recap must report `changed=0`, `unreachable=0`, and

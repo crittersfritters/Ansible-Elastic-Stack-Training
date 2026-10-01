@@ -1,0 +1,6 @@
+---
+# Offline validation uses the declared paths. Deployment replaces these values
+# with canonical paths discovered on the managed host.
+filebeat_zeek_resolved_logs_root: "{{ zeek_logs_root }}"
+filebeat_zeek_resolved_logs_dir: "{{ zeek_logs_dir }}"
+filebeat_zeek_external_log_mounts: []

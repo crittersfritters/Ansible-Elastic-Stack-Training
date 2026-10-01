@@ -80,14 +80,17 @@ set without templating the whole operating-system file.
 | Elasticsearch | `/var/docker/elasticsearch/data` |
 | Kibana | `/var/docker/kibana/data` |
 | Kafka | `/var/docker/kafka/data` |
-| Zeek Filebeat | registry under `/var/docker/filebeat_zeek/data`; host logs under `/opt/zeek/logs` |
+| Zeek Filebeat | registry under `/var/docker/filebeat_zeek/data`; canonical stable root plus the canonical active target when it resolves outside that root |
 | Suricata Filebeat | registry under `/var/docker/filebeat_suricata/data`; host logs under `/var/log/suricata` |
 | Both Logstash projects | committed configuration; no course data volume |
 
 Filebeat registry persistence prevents an ordinary collector recreation from
-re-reading every sensor record. Mounting the Zeek log root instead of the
-`current` symlink also keeps rotation from stranding the container on a former
-directory.
+re-reading every sensor record. The Zeek role resolves `logs/current` rather
+than assuming it resides beneath the apparent parent. It mounts the stable
+root read-only and conditionally mounts an external canonical active target at
+the same absolute path. Normal file rotation stays within that target. An
+administrative change to the symlink or Zeek `SpoolDir` requires rerunning the
+sensor role so the Compose model and Filebeat path are reconciled.
 
 ## Deployment ownership
 
@@ -120,3 +123,10 @@ its own key to reach the `ansible` identity, then Ansible performs explicit
 become tasks. That key plus the Vault-supplied become credential is still an
 effective root path: permission to change protected deployable CI or Ansible
 content must be treated as privileged access to the lab host.
+
+Host sensor logs remain owned and labeled as host-service data. Their Filebeat
+binds are read-only and do not request relabeling. When SELinux is active,
+Docker confinement is a host prerequisite: Zeek Filebeat uses `container_t`,
+while Suricata Filebeat uses the narrower log-reading
+`container_logreader_t` domain so `/var/log/suricata` can retain its native
+log label.

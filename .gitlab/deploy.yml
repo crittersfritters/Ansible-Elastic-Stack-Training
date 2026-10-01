@@ -113,6 +113,15 @@ default:
           - roles/filebeat_suricata/**/*
           - group_vars/all/network-sensors.yml
 
+    # This shared assertion is called only by host preparation and the two
+    # sensor collector roles. A change must therefore re-run those owners,
+    # without selecting unrelated application services.
+    - &docker_selinux_contract_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles/common/tasks/verify_docker_selinux.yml
+
     - &common_all_services_change
       changes:
         compare_to: "$TRAINING_LAB_COMPARE_TO"
@@ -165,6 +174,9 @@ default:
       fi
       test -x "$CI_PROJECT_DIR/vault_password.sh"
       export ANSIBLE_VAULT_PASSWORD_FILE="$CI_PROJECT_DIR/vault_password.sh"
+    # Confirm the protected variable decrypts the tracked payload before any
+    # inventory or deployment command runs. Discard both streams so neither
+    # decrypted content nor credential-tool diagnostics enter the job log.
     - |
       if ! ansible-vault view group_vars/all/vault.yml >/dev/null 2>&1; then
         echo "Ansible could not open the encrypted Vault file with the configured password." >&2
@@ -183,6 +195,7 @@ preflightDeployment:
   extends: .training_lab_deploy_job
   stage: preflight
   script:
+    - bash validation/validate.sh static
     - ansible-inventory --graph
     - ansible all -m ping
     - ansible-playbook --syntax-check roles-all.yml
@@ -196,6 +209,7 @@ preflightDeployment:
     - *port_router_change
     - *kibana_change
     - *sensor_change
+    - *docker_selinux_contract_change
     - *common_all_services_change
     - *common_elasticsearch_change
     - *common_kafka_change
@@ -216,6 +230,7 @@ configureLocalHost:
   rules:
     - *skip_full_site_change
     - *system_change
+    - *docker_selinux_contract_change
 
 deployElasticsearch:
   extends: .training_lab_deploy_job
@@ -298,6 +313,7 @@ deployNetworkSensors:
     - *common_kafka_change
     - *kafka_change
     - *sensor_change
+    - *docker_selinux_contract_change
     - changes:
         compare_to: "$TRAINING_LAB_COMPARE_TO"
         paths:

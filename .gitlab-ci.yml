@@ -33,6 +33,7 @@ workflow:
           - roles/common/tasks/deploy_compose.yml
           - roles/common/tasks/update_from_template.yml
           - roles/common/tasks/wait_for_container_health.yml
+          - roles/common/tasks/verify_docker_selinux.yml
           - roles/common/tasks/wait_for_elasticsearch.yml
           - roles/common/tasks/wait_for_kafka.yml
           - roles/elasticsearch/**/*
@@ -118,8 +119,7 @@ validateAnswerSheet:
     - ansible-galaxy collection install -r requirements.yml -p .ansible/collections
   script:
     - python3 -c 'import yaml'
-    - ansible-inventory --graph
-    - ansible-playbook --syntax-check roles-all.yml
+    - bash validation/validate.sh static
 
 deployTrainingLabChanges:
   stage: deploy

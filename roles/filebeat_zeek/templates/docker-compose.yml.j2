@@ -8,10 +8,17 @@ services:
 {% for alias in training_lab_container_aliases %}
       - "{{ alias }}={{ training_lab_loopback_address }}"
 {% endfor %}
+    labels:
+      org.training-lab.sensor: zeek
+      org.training-lab.zeek.logs-root: "{{ filebeat_zeek_resolved_logs_root }}"
+      org.training-lab.zeek.logs-active: "{{ filebeat_zeek_resolved_logs_dir }}"
     restart: unless-stopped
     volumes:
       - "{{ filebeat_zeek_folder_path }}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro,Z"
-      - "{{ zeek_logs_root }}:{{ zeek_logs_root }}:{{ sensor_log_bind_options }}"
+      - "{{ filebeat_zeek_resolved_logs_root }}:{{ filebeat_zeek_resolved_logs_root }}:{{ sensor_log_bind_options }}"
+{% for zeek_external_log_mount in filebeat_zeek_external_log_mounts %}
+      - "{{ zeek_external_log_mount }}:{{ zeek_external_log_mount }}:{{ sensor_log_bind_options }}"
+{% endfor %}
       - "{{ filebeat_zeek_folder_path }}/data:/usr/share/filebeat/data:Z"
     healthcheck:
       test: ["CMD-SHELL", "filebeat test config -c /usr/share/filebeat/filebeat.yml --path.data /tmp/filebeat-health >/dev/null 2>&1 && filebeat test output -c /usr/share/filebeat/filebeat.yml --path.data /tmp/filebeat-health >/dev/null 2>&1"]

@@ -19,6 +19,7 @@ __pycache__/
 !.env.example
 *.tmp
 *.swp
+.evidence/
 
 # Starts as a local plaintext file, then is deliberately force-added only
 # after whole-file Ansible Vault encryption.

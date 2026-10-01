@@ -1,0 +1,5 @@
+---
+# Copy to vault.yml for the initial manual Ansible run. Keep that copy ignored
+# while plaintext. Before CI deployment, encrypt the whole file with
+# ansible-vault and deliberately add the encrypted result to version control.
+ansible_become_password: replace-with-the-local-ansible-account-password

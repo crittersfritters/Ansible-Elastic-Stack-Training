@@ -1,36 +1,30 @@
-# Ansible Elastic Stack Training Lab — complete Ansible checkpoint
+# Ansible Elastic Stack Training Lab — Vault checkpoint
 
-This answer checkpoint has converted the proven manual lab into seven
-independent, Ansible-managed Docker Compose projects on one Linux host. The
-manual implementation remains available on `answers/01-manual`, and the first
-role transition remains available on `answers/02-first-role`.
+This answer-sheet checkpoint adds the credential transition to the complete seven-project Ansible deployment. The reference first proves the automation with a local plaintext variable file, then encrypts that file with Ansible Vault before CI is introduced.
 
-The roles manage Elasticsearch, Kibana, Kafka, processing Logstash, port-router Logstash, Zeek Filebeat, and Suricata Filebeat. GitLab remains a separate bootstrap project and is deliberately outside Ansible ownership.
+The manual, first-role, and complete pre-Vault states remain available on
+`answers/01-manual`, `answers/02-first-role`, and
+`answers/03-full-ansible`. GitLab remains a separate Compose project outside
+Ansible ownership.
 
-Before deploying, stop the manual projects using the reverse-order instructions
-on `answers/01-manual`. Their containers use the same names and ports as the
-managed projects under `/var/docker`. Leave the separate GitLab project
-running.
+## Manual-to-Vault progression
 
-## Prerequisites
-
-- a maintained Linux host with Docker Engine and the Compose plugin
-- Zeek and Suricata installed as described in [docs/sensor-host-setup.md](docs/sensor-host-setup.md)
-- an `ansible` account reachable over SSH at `training-lab.local`
-- the hostname and port contract in [docs/reference-contract.md](docs/reference-contract.md)
-- Ansible Core and the collections pinned in `requirements.yml`
-
-## Deploy the complete stack
-
-Install the collections, verify the single-host inventory, and run the ordered aggregate playbook. Before Vault is introduced, provide the become credential interactively:
+Follow [the identity and Vault guide](docs/identity-and-vault.md) to create the dedicated `ansible` account, SSH trust, privilege boundary, and later runner identity. For the first local run:
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
-ansible-inventory --graph
-ansible all -m ping
-ansible-playbook roles-all.yml --ask-become-pass
+cp group_vars/all/vault.yml.example group_vars/all/vault.yml
+chmod 0600 group_vars/all/vault.yml
+${EDITOR:-vi} group_vars/all/vault.yml
+ansible-playbook roles-all.yml
 ```
 
-The aggregate playbook prepares shared host paths once, then reconciles services in dependency order. Each component also retains its focused playbook for development and troubleshooting.
+After that run and an unchanged idempotence run succeed, encrypt the whole variable file:
 
-Re-run `roles-all.yml --ask-become-pass` without changing the repository and inspect the recap for idempotence. The next checkpoint introduces the plaintext-to-Ansible-Vault progression, and the later CI checkpoint adds protected deployment automation.
+```bash
+ansible-vault encrypt group_vars/all/vault.yml
+git add -f group_vars/all/vault.yml
+```
+
+The plaintext path is ignored; deliberately track only the encrypted result. `vault_password.sh` reads the password from `ANSIBLE_VAULT_PASSWORD` and never stores it in the repository.
+
+Use [the first-deployment checklist](docs/first-deployment.md) to collect evidence. The following checkpoint adds the protected GitLab deployment path; do not give the runner Docker-group membership or unrestricted passwordless root.

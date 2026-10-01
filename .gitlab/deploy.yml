@@ -1,0 +1,304 @@
+---
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+    - when: never
+
+stages:
+  - plan
+  - preflight
+  - full
+  - system
+  - elasticsearch
+  - kafka
+  - logstash
+  - port_router
+  - kibana
+  - sensors
+
+variables:
+  ANSIBLE_CONFIG: "$CI_PROJECT_DIR/ansible.cfg"
+  ANSIBLE_LOCAL_TEMP: "$CI_PROJECT_DIR/.ansible/tmp"
+
+default:
+  tags:
+    - training-lab-local
+
+# The course runs every logical node on one Linux host, but the changed-path
+# graph still models service ownership and downstream dependencies:
+#
+#   Elasticsearch -> processing Logstash, Kibana
+#   Kafka         -> processing Logstash, port router, network sensors
+.change_rule_templates:
+  rules:
+    - &ci_configuration_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*
+          - validation/**/*
+          - vault_password.sh
+
+    - &full_site_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths: &full_site_change_paths
+          - ansible.cfg
+          - requirements.yml
+          - site-config.yml
+          - group_vars/all/main.yml
+          - group_vars/all/vault.yml
+          - group_vars/all/vault.yml.example
+          - roles-all.yml
+
+    - &skip_full_site_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths: *full_site_change_paths
+      when: never
+
+    - &system_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-system_files_setup.yml
+          - roles/system_files_setup/**/*
+
+    - &elasticsearch_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-elasticsearch_nodes.yml
+          - roles/elasticsearch/**/*
+          - group_vars/all/elastic-stack.yml
+          - group_vars/all/elastic-assets.yml
+
+    - &kafka_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-queue_nodes.yml
+          - roles/kafka/**/*
+          - group_vars/all/kafka.yml
+
+    - &logstash_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-logstash_nodes.yml
+          - roles/logstash_pipeline/**/*
+
+    - &port_router_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-logstash_port-router.yml
+          - roles/port_router/**/*
+          - group_vars/all/mission.yml
+
+    - &kibana_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-web_servers.yml
+          - roles/kibana/**/*
+
+    - &sensor_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles-network_sensors.yml
+          - roles/filebeat_zeek/**/*
+          - roles/filebeat_suricata/**/*
+          - group_vars/all/network-sensors.yml
+
+    - &common_all_services_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles/common/tasks/deploy_compose.yml
+          - roles/common/tasks/update_from_template.yml
+          - roles/common/tasks/wait_for_container_health.yml
+
+    - &common_elasticsearch_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles/common/tasks/wait_for_elasticsearch.yml
+
+    - &common_kafka_change
+      changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - roles/common/tasks/wait_for_kafka.yml
+
+.training_lab_deploy_job:
+  interruptible: false
+  resource_group: training-lab-deployment
+  cache:
+    key:
+      files:
+        - requirements.yml
+    paths:
+      - .ansible/roles/
+      - .ansible/collections/
+    policy: pull-push
+  before_script:
+    - umask 0002
+    - mkdir -p .ansible/roles .ansible/collections .ansible/tmp
+    - |
+      if [ ! -s group_vars/all/vault.yml ]; then
+        echo "Create and encrypt group_vars/all/vault.yml before CI deployment." >&2
+        exit 1
+      fi
+      vault_header=
+      IFS= read -r vault_header < group_vars/all/vault.yml || true
+      if [[ "$vault_header" != '$ANSIBLE_VAULT;'* ]]; then
+        echo "CI refuses a plaintext group_vars/all/vault.yml." >&2
+        exit 1
+      fi
+      unset vault_header
+      if [ -z "${ANSIBLE_VAULT_PASSWORD:-}" ]; then
+        echo "ANSIBLE_VAULT_PASSWORD is required for encrypted vault.yml." >&2
+        exit 1
+      fi
+      test -x "$CI_PROJECT_DIR/vault_password.sh"
+      export ANSIBLE_VAULT_PASSWORD_FILE="$CI_PROJECT_DIR/vault_password.sh"
+    - |
+      if ! ansible-vault view group_vars/all/vault.yml >/dev/null 2>&1; then
+        echo "Ansible could not open the encrypted Vault file with the configured password." >&2
+        exit 1
+      fi
+    - ansible-galaxy collection install -r requirements.yml -p .ansible/collections
+
+pipelineConfigurationChanged:
+  stage: plan
+  script:
+    - echo "CI deployment mapping changed; no service is selected by this path alone."
+  rules:
+    - *ci_configuration_change
+
+preflightDeployment:
+  extends: .training_lab_deploy_job
+  stage: preflight
+  script:
+    - ansible-inventory --graph
+    - ansible all -m ping
+    - ansible-playbook --syntax-check roles-all.yml
+  rules:
+    - *ci_configuration_change
+    - *full_site_change
+    - *system_change
+    - *elasticsearch_change
+    - *kafka_change
+    - *logstash_change
+    - *port_router_change
+    - *kibana_change
+    - *sensor_change
+    - *common_all_services_change
+    - *common_elasticsearch_change
+    - *common_kafka_change
+
+deployFullSite:
+  extends: .training_lab_deploy_job
+  stage: full
+  script:
+    - ansible-playbook roles-all.yml
+  rules:
+    - *full_site_change
+
+configureLocalHost:
+  extends: .training_lab_deploy_job
+  stage: system
+  script:
+    - ansible-playbook roles-system_files_setup.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+
+deployElasticsearch:
+  extends: .training_lab_deploy_job
+  stage: elasticsearch
+  script:
+    - ansible-playbook roles-elasticsearch_nodes.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_elasticsearch_change
+    - *elasticsearch_change
+
+deployKafka:
+  extends: .training_lab_deploy_job
+  stage: kafka
+  script:
+    - ansible-playbook roles-queue_nodes.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_kafka_change
+    - *kafka_change
+
+deployLogstashPipeline:
+  extends: .training_lab_deploy_job
+  stage: logstash
+  script:
+    - ansible-playbook roles-logstash_nodes.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_elasticsearch_change
+    - *common_kafka_change
+    - *elasticsearch_change
+    - *kafka_change
+    - *logstash_change
+
+deployPortRouter:
+  extends: .training_lab_deploy_job
+  stage: port_router
+  script:
+    - ansible-playbook roles-logstash_port-router.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_kafka_change
+    - *kafka_change
+    - *port_router_change
+    - changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - group_vars/all/elastic-stack.yml
+
+deployKibana:
+  extends: .training_lab_deploy_job
+  stage: kibana
+  script:
+    - ansible-playbook roles-web_servers.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_elasticsearch_change
+    - *elasticsearch_change
+    - *kibana_change
+
+deployNetworkSensors:
+  extends: .training_lab_deploy_job
+  stage: sensors
+  script:
+    - ansible-playbook roles-network_sensors.yml
+  rules:
+    - *skip_full_site_change
+    - *system_change
+    - *common_all_services_change
+    - *common_kafka_change
+    - *kafka_change
+    - *sensor_change
+    - changes:
+        compare_to: "$TRAINING_LAB_COMPARE_TO"
+        paths:
+          - group_vars/all/elastic-stack.yml

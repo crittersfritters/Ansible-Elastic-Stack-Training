@@ -1,30 +1,19 @@
-# Ansible Elastic Stack Training Lab — Vault checkpoint
+# Ansible Elastic Stack Training Lab — GitLab CI checkpoint
 
-This answer-sheet checkpoint adds the credential transition to the complete seven-project Ansible deployment. The reference first proves the automation with a local plaintext variable file, then encrypts that file with Ansible Vault before CI is introduced.
+This checkpoint adds the protected, dependency-aware GitLab deployment path to the complete Ansible and Vault implementation. It is intentionally more advanced than the learner's minimum: a learner-authored full reconciliation on an eligible push also satisfies the course objective.
 
-The manual, first-role, and complete pre-Vault states remain available on
-`answers/01-manual`, `answers/02-first-role`, and
-`answers/03-full-ansible`. GitLab remains a separate Compose project outside
-Ansible ownership.
+Read [the GitLab CI reference](docs/gitlab-ci.md) together with [the identity and Vault guide](docs/identity-and-vault.md). The parent pipeline performs static validation, computes relevant changes, holds the shared-lab lock, and triggers ordered component reconciliation through the host shell runner. Every mutation still crosses SSH into the dedicated `ansible` account.
 
-## Manual-to-Vault progression
+Only eligible protected branch pushes with deployment-relevant changes create
+this reference pipeline. The published `answers/*` checkpoint branches are
+reference-only and are explicitly excluded from deployment. To exercise this
+phase, create a personal integration branch from `answers/05-gitlab-ci`,
+protect it deliberately, and authorize it to use the protected runner and
+variables. Protected variables, runner access, branch permissions, and review
+of deployable CI content together form an effective root boundary for the
+disposable lab.
 
-Follow [the identity and Vault guide](docs/identity-and-vault.md) to create the dedicated `ansible` account, SSH trust, privilege boundary, and later runner identity. For the first local run:
+Before enabling mutation, prove the runner's noninteractive PATH, repository checkout permissions, SSH host key, Ansible inventory, Vault decryption, and static validation. Then exercise the acceptance matrix in `docs/gitlab-ci.md` and verify the resulting service state, not just a green pipeline graph.
 
-```bash
-cp group_vars/all/vault.yml.example group_vars/all/vault.yml
-chmod 0600 group_vars/all/vault.yml
-${EDITOR:-vi} group_vars/all/vault.yml
-ansible-playbook roles-all.yml
-```
-
-After that run and an unchanged idempotence run succeed, encrypt the whole variable file:
-
-```bash
-ansible-vault encrypt group_vars/all/vault.yml
-git add -f group_vars/all/vault.yml
-```
-
-The plaintext path is ignored; deliberately track only the encrypted result. `vault_password.sh` reads the password from `ANSIBLE_VAULT_PASSWORD` and never stores it in the repository.
-
-Use [the first-deployment checklist](docs/first-deployment.md) to collect evidence. The following checkpoint adds the protected GitLab deployment path; do not give the runner Docker-group membership or unrestricted passwordless root.
+The final `answer-sheet` branch adds the validation harness, operational
+guides, traceability matrix, and publication controls.

@@ -1,0 +1,133 @@
+---
+# The parent pipeline is created only for branch pushes that change CI mapping
+# or managed lab state. It holds the deployment lock while the child pipeline
+# selects the owning components and the services that depend on them.
+workflow:
+  rules:
+    # Normal branch push: compare the pushed commit with the previous commit on
+    # this branch so one pipeline covers the complete push change set.
+    - if: >-
+        $CI_PIPELINE_SOURCE == "push" &&
+        $CI_COMMIT_BRANCH &&
+        $CI_COMMIT_BRANCH !~ /^answers\// &&
+        $CI_COMMIT_REF_PROTECTED == "true" &&
+        $CI_COMMIT_BEFORE_SHA != "0000000000000000000000000000000000000000"
+      changes:
+        compare_to: "$CI_COMMIT_BEFORE_SHA"
+        paths: &deploy_relevant_paths
+          - .gitlab-ci.yml
+          - .gitlab/**/*
+          - validation/**/*
+          - vault_password.sh
+          - ansible.cfg
+          - requirements.yml
+          - site-config.yml
+          - group_vars/all/vault.yml
+          - group_vars/all/vault.yml.example
+          - group_vars/all/main.yml
+          - group_vars/all/elastic-stack.yml
+          - group_vars/all/elastic-assets.yml
+          - group_vars/all/kafka.yml
+          - group_vars/all/mission.yml
+          - group_vars/all/network-sensors.yml
+          - roles/common/tasks/deploy_compose.yml
+          - roles/common/tasks/update_from_template.yml
+          - roles/common/tasks/wait_for_container_health.yml
+          - roles/common/tasks/wait_for_elasticsearch.yml
+          - roles/common/tasks/wait_for_kafka.yml
+          - roles/elasticsearch/**/*
+          - roles/filebeat_suricata/**/*
+          - roles/filebeat_zeek/**/*
+          - roles/kafka/**/*
+          - roles/kibana/**/*
+          - roles/logstash_pipeline/**/*
+          - roles/port_router/**/*
+          - roles/system_files_setup/**/*
+          - roles-all.yml
+          - roles-elasticsearch_nodes.yml
+          - roles-logstash_nodes.yml
+          - roles-logstash_port-router.yml
+          - roles-network_sensors.yml
+          - roles-queue_nodes.yml
+          - roles-system_files_setup.yml
+          - roles-web_servers.yml
+      variables:
+        TRAINING_LAB_COMPARE_TO: "$CI_COMMIT_BEFORE_SHA"
+
+    # The first push to a newly created branch has an all-zero before SHA.
+    # Compare it with the default branch instead of treating every repository
+    # file as changed and unnecessarily deploying the complete lab.
+    - if: >-
+        $CI_PIPELINE_SOURCE == "push" &&
+        $CI_COMMIT_BRANCH &&
+        $CI_COMMIT_BRANCH !~ /^answers\// &&
+        $CI_COMMIT_REF_PROTECTED == "true" &&
+        $CI_COMMIT_BEFORE_SHA == "0000000000000000000000000000000000000000"
+      changes:
+        compare_to: "$CI_DEFAULT_BRANCH"
+        paths: *deploy_relevant_paths
+      variables:
+        TRAINING_LAB_COMPARE_TO: "$CI_DEFAULT_BRANCH"
+
+    - when: never
+
+stages:
+  - validate
+  - deploy
+
+validateAnswerSheet:
+  stage: validate
+  tags:
+    - training-lab-local
+  variables:
+    ANSIBLE_CONFIG: "$CI_PROJECT_DIR/ansible.cfg"
+    ANSIBLE_LOCAL_TEMP: "$CI_PROJECT_DIR/.ansible/tmp"
+  cache:
+    key:
+      files:
+        - requirements.yml
+    paths:
+      - .ansible/roles/
+      - .ansible/collections/
+    policy: pull-push
+  before_script:
+    - umask 0002
+    - mkdir -p .ansible/roles .ansible/collections .ansible/tmp
+    - |
+      if [ ! -s group_vars/all/vault.yml ]; then
+        echo "Create and encrypt group_vars/all/vault.yml before CI validation." >&2
+        exit 1
+      fi
+      vault_header=
+      IFS= read -r vault_header < group_vars/all/vault.yml || true
+      if [[ "$vault_header" != '$ANSIBLE_VAULT;'* ]]; then
+        echo "CI refuses a plaintext group_vars/all/vault.yml." >&2
+        exit 1
+      fi
+      unset vault_header
+      if [ -z "${ANSIBLE_VAULT_PASSWORD:-}" ]; then
+        echo "ANSIBLE_VAULT_PASSWORD is required for encrypted vault.yml." >&2
+        exit 1
+      fi
+      test -x "$CI_PROJECT_DIR/vault_password.sh"
+      export ANSIBLE_VAULT_PASSWORD_FILE="$CI_PROJECT_DIR/vault_password.sh"
+      if ! ansible-vault view group_vars/all/vault.yml >/dev/null 2>&1; then
+        echo "Ansible could not open the encrypted Vault file with the configured password." >&2
+        exit 1
+      fi
+    - ansible-galaxy collection install -r requirements.yml -p .ansible/collections
+  script:
+    - python3 -c 'import yaml'
+    - ansible-inventory --graph
+    - ansible-playbook --syntax-check roles-all.yml
+
+deployTrainingLabChanges:
+  stage: deploy
+  interruptible: false
+  resource_group: training-lab-pipeline
+  environment:
+    name: lab
+  trigger:
+    include:
+      - local: .gitlab/deploy.yml
+    strategy: mirror

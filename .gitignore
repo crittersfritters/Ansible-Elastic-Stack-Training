@@ -1,0 +1,21 @@
+# Local Ansible and secret material
+.ansible/
+*.retry
+group_vars/all/vault.yml
+
+# Local environments and editor files
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+*.tmp
+*.swp
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime data belongs outside the source tree; these entries also protect a
+# learner who temporarily mirrors the reference directory names while testing.
+**/data/

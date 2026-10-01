@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-08T10:45:05.125000+0000","event_type":"alert","src_ip":"192.168.50.12","src_port":54212,"dest_ip":"10.1.1.5","dest_port":443,"proto":"TCP","alert":{"action":"allowed","signature_id":9000001,"rev":1,"signature":"Ansible Elastic Stack Training Lab event","category":"Training","severity":3}}

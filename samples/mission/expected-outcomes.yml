@@ -1,0 +1,40 @@
+---
+pan-simple.log:
+  parser_id: pan_simple
+  parser_version: "1"
+  destination: active-grok-match
+  timestamp: "2026-01-07T14:22:01"
+  selected_fields:
+    source.ip: {type: ip, value: 192.168.50.12}
+    destination.ip: {type: ip, value: 10.1.1.5}
+    destination.port: {type: integer, value: 443}
+    rule.name: {type: keyword, value: rule-dmz-deny}
+    event.action: {type: keyword, value: DROP}
+
+pan-full.log:
+  parser_id: pan_full
+  parser_version: "1"
+  destination: active-grok-match
+  timestamp: "2026-01-08T10:45:05"
+  selected_fields:
+    source.ip: {type: ip, value: 192.168.1.100}
+    destination.ip: {type: ip, value: 172.217.16.14}
+    destination.port: {type: integer, value: 443}
+    destination.bytes: {type: long, value: 3300}
+    destination.packets: {type: long, value: 16}
+    rule.name: {type: keyword, value: Allow-Web-Access}
+    event.action: {type: keyword, value: drop}
+
+unmatched.log:
+  parser_id: unmatched
+  parser_version: "1"
+  destination: active-unparsed
+
+date-failure.log:
+  parser_id: pan_simple
+  parser_version: "1"
+  destination: active-unparsed
+
+all_mission_records:
+  preserve_exact_input_as: event.original
+  visible_parser_fields: [_parser.id, _parser.version]

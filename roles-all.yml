@@ -1,4 +1,5 @@
 ---
+# This orchestration entry point is also the CI full-site reconciliation trigger.
 # Deploy the complete single-site training stack in dependency order. Docker
 # is a host prerequisite because the same daemon also owns the GitLab project.
 - name: Prepare the localhost target

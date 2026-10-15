@@ -1,6 +1,6 @@
 services:
   filebeat_suricata:
-    image: docker.elastic.co/beats/filebeat:9.2.8
+    image: docker.elastic.co/beats/filebeat:9.5.5
     container_name: filebeat_suricata
     user: root
     network_mode: host

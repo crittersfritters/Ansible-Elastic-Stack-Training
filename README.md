@@ -61,7 +61,7 @@ Each top-level service directory is an independent Compose project:
 | `filebeat_zeek` | `filebeat_zeek` | none |
 | `filebeat_suricata` | `filebeat_suricata` | none |
 
-The reference pins Elastic `9.2.8`, Apache Kafka `3.9.2`, and Kafka UI
+The reference pins Elastic `9.5.5`, Apache Kafka `3.9.2`, and Kafka UI
 `v0.7.2`. Record resolved digests during release validation if byte-for-byte
 image reproducibility is required.
 

@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.8
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
     container_name: elasticsearch
     network_mode: host
     restart: unless-stopped

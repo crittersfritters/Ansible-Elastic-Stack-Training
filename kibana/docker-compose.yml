@@ -1,6 +1,6 @@
 services:
   kibana:
-    image: docker.elastic.co/kibana/kibana:9.2.8
+    image: docker.elastic.co/kibana/kibana:9.5.5
     container_name: kibana
     network_mode: host
     restart: unless-stopped

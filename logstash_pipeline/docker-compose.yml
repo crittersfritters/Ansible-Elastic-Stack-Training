@@ -1,6 +1,6 @@
 services:
   logstash_pipeline:
-    image: docker.elastic.co/logstash/logstash:9.2.8
+    image: docker.elastic.co/logstash/logstash:9.5.5
     container_name: logstash_pipeline
     network_mode: host
     restart: unless-stopped

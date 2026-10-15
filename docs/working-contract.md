@@ -64,7 +64,7 @@ port-router pipeline ID is also `logstash_port-router`; the processing IDs are
 
 GitLab is the independent Compose project, service, and container `gitlab`
 under `/var/training/gitlab`. Its Compose file lives at that project root. It
-uses `gitlab/gitlab-ee:19.4.1-ee.0`, advertises
+uses `gitlab/gitlab-ee:19.5.0-ee.0`, advertises
 `http://gitlab.local:8929` and Git SSH port `2424`, and bind-mounts the
 project's `config`, `logs`, and `data` directories to GitLab's configuration,
 log, and application-data paths.
@@ -97,7 +97,7 @@ source time, or invalid source time belongs at `active-unparsed`.
 
 ### Release-candidate component baseline
 
-The reference candidate preserves GitLab EE `19.4.1-ee.0` and uses Elastic
+The reference candidate preserves GitLab EE `19.5.0-ee.0` and uses Elastic
 Stack `9.5.5`,
 Apache Kafka `3.9.2`, and Kafka UI `v0.7.2`. Do not substitute mutable
 `latest` tags. A GitLab edition or version change is a maintainer-led contract

@@ -25,7 +25,7 @@ procedure. The checklist below is the milestone summary.
 1. Create `/var/training/gitlab` for this Compose project and keep its Compose
    file at that root.
 2. Define the project, service, and container as `gitlab`, using the exact
-   image `gitlab/gitlab-ee:19.4.1-ee.0`.
+   image `gitlab/gitlab-ee:19.5.0-ee.0`.
 3. Configure GitLab's external URL as `http://gitlab.local:8929` and its
    advertised Git SSH port as `2424`.
 4. Publish `8929:8929`, `443:443`, and `2424:22` only on `127.0.0.1`. Keep the
@@ -50,7 +50,7 @@ future Training Lab Ansible playbooks responsible for GitLab.
 ## Completion criteria
 
 - Docker and Compose can start and inspect a test workload.
-- GitLab runs as project/service/container `gitlab` from the pinned EE 19.4.1
+- GitLab runs as project/service/container `gitlab` from the pinned EE 19.5.0
   image.
 - GitLab is healthy, and
   `http://gitlab.local:8929/users/sign_in` responds.

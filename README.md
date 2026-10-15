@@ -41,7 +41,7 @@ or host-package version. Install host prerequisites using the documentation
 for the selected distribution and the relevant upstream project, then prove
 the required behavior instead of relying on a package name alone.
 
-The release candidate preserves the lab's GitLab EE `19.4.1-ee.0` baseline,
+The release candidate preserves the lab's GitLab EE `19.5.0-ee.0` baseline,
 and pins Elastic Stack `9.5.5`,
 Apache Kafka `3.9.2`, and Kafka UI `v0.7.2`. These application versions are
 part of the reproducible reference implementation; they are not a host-

@@ -6,7 +6,7 @@ into learner instructions.
 
 | Milestone | Contract/evidence | Earliest answer branch | Validation |
 |---|---|---|---|
-| 00 Host and GitLab | EE 19.4.1, project/container `gitlab`, ports 8929/443/2424, `/var/training/gitlab` persistence, local clone | `answers/01-manual` | semantic Compose check; runtime image, health, UI, and exact port publication |
+| 00 Host and GitLab | EE 19.5.0, project/container `gitlab`, ports 8929/443/2424, `/var/training/gitlab` persistence, local clone | `answers/01-manual` | semantic Compose check; runtime image, health, UI, and exact port publication |
 | 01 Elastic foundation | four distinct object types and durable test document | `answers/01-manual` | exact templates, mappings, indices, aliases, data views |
 | 02 Sensors | fresh Zeek JSON and Suricata EVE records | `answers/01-manual` | readable valid source records |
 | 03 Direct path | one event per sensor at the intended index/data view | `answers/01-manual` | native configs and direct end-to-end observation |

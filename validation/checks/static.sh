@@ -271,7 +271,7 @@ if set(services) != {"gitlab"}:
 service = services.get("gitlab") or {}
 
 expected_scalars = {
-    "image": "gitlab/gitlab-ee:19.4.1-ee.0",
+    "image": "gitlab/gitlab-ee:19.5.0-ee.0",
     "container_name": "gitlab",
     "hostname": "gitlab.local",
     "restart": "unless-stopped",

@@ -98,7 +98,7 @@ source time, or invalid source time belongs at `active-unparsed`.
 ### Release-candidate component baseline
 
 The reference candidate preserves GitLab EE `19.4.1-ee.0` and uses Elastic
-Stack `9.2.8`,
+Stack `9.5.5`,
 Apache Kafka `3.9.2`, and Kafka UI `v0.7.2`. Do not substitute mutable
 `latest` tags. A GitLab edition or version change is a maintainer-led contract
 revision, not a learner choice. The release remains a candidate until the

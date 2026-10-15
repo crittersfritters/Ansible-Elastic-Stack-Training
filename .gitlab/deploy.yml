@@ -200,6 +200,7 @@ preflightDeployment:
     - ansible all -m ping
     - ansible-playbook --syntax-check roles-all.yml
   rules:
+    - if: '$TRAINING_LAB_FORCE_FULL == "true"'
     - *ci_configuration_change
     - *full_site_change
     - *system_change
@@ -220,8 +221,8 @@ deployFullSite:
   script:
     - ansible-playbook roles-all.yml
   rules:
+    - if: '$TRAINING_LAB_FORCE_FULL == "true"'
     - *full_site_change
-
 configureLocalHost:
   extends: .training_lab_deploy_job
   stage: system

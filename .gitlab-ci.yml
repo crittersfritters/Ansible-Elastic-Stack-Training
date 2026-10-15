@@ -4,6 +4,15 @@
 # selects the owning components and the services that depend on them.
 workflow:
   rules:
+    # A manually created pipeline on the protected final answer branch performs
+    # an intentional full-site deployment without manufacturing a Git change.
+    - if: >-
+        $CI_PIPELINE_SOURCE == "web" &&
+        $CI_COMMIT_BRANCH == "answer-sheet" &&
+        $CI_COMMIT_REF_PROTECTED == "true"
+      variables:
+        TRAINING_LAB_FORCE_FULL: "true"
+        TRAINING_LAB_COMPARE_TO: "$CI_COMMIT_SHA"
     # Normal branch push: compare the pushed commit with the previous commit on
     # this branch so one pipeline covers the complete push change set.
     - if: >-

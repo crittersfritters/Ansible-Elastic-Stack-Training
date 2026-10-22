@@ -5,7 +5,7 @@ ownership. It shares the host Docker daemon with Training Lab, so the stack
 playbooks must never install, reconfigure, restart, or prune Docker.
 
 The course contract preserves the existing lab instance exactly: GitLab EE
-`19.5.0-ee.0`, Compose project/service/container name `gitlab`, canonical URL
+`19.5.1-ee.0`, Compose project/service/container name `gitlab`, canonical URL
 `http://gitlab.local:8929`, and advertised Git SSH port `2424`. This is a
 reproducible course baseline, not a recommendation to install an old release
 on another system. Changing its version or edition is a separate maintainer-led

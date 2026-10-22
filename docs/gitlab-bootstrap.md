@@ -104,7 +104,7 @@ this table.
 
 | Area | Requirement |
 |---|---|
-| Image | Use the exact course baseline `gitlab/gitlab-ee:19.5.0-ee.0`. Do not substitute CE, `latest`, or another release. |
+| Image | Use the exact course baseline `gitlab/gitlab-ee:19.5.1-ee.0`. Do not substitute CE, `latest`, or another release. |
 | Project identity | Use `gitlab` as the Compose project, service, and container name. |
 | Hostname | Configure GitLab to identify itself as `gitlab.local`. |
 | Network mode | Use ordinary Compose port publishing rather than host networking. GitLab's internal SSH listener must remain distinct from the host SSH listener. |
@@ -124,7 +124,7 @@ Investigate the relationship among the
 external URL, the internal listener, the published host port, and the clone URL
 before starting the service.
 
-The pinned EE 19.5.0 image records the existing course environment. Treat an
+The pinned EE 19.5.1 image records the existing course environment. Treat an
 edition or version change as a maintainer-led contract revision that requires
 an upgrade plan and complete revalidation, not as a learner-selected bootstrap
 variation.
@@ -200,7 +200,7 @@ This milestone is complete only when all of the following are true:
 
 - `gitlab.local` resolves on the host;
 - the active Compose project, service, and container are all named `gitlab`;
-- the active image is exactly `gitlab/gitlab-ee:19.5.0-ee.0`;
+- the active image is exactly `gitlab/gitlab-ee:19.5.1-ee.0`;
 - the Compose configuration renders without error;
 - the GitLab container becomes healthy and the sign-in page responds at
   `http://gitlab.local:8929/users/sign_in`;

@@ -2,7 +2,7 @@ name: gitlab
 
 services:
   gitlab:
-    image: gitlab/gitlab-ee:19.5.0-ee.0
+    image: gitlab/gitlab-ee:19.5.1-ee.0
     container_name: gitlab
     hostname: gitlab.local
     restart: unless-stopped

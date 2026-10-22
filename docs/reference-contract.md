@@ -68,8 +68,8 @@ earlier direct-path checkpoint.
 
 GitLab is an eighth, independently managed Compose project under
 `/var/training/gitlab` and must not be removed, restarted, or adopted by
-Training Lab automation. It preserves the existing
-`gitlab/gitlab-ee:19.5.0-ee.0` baseline, uses
+Training Lab automation. It uses the
+`gitlab/gitlab-ee:19.5.1-ee.0` baseline,
 `http://gitlab.local:8929` as its external URL, advertises SSH port `2424`,
 and mounts `config`, `logs`, and `data` from that project root. A version or
 edition change is outside the course bootstrap contract.
